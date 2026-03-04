@@ -8,15 +8,16 @@
   <span class="badge bg-secondary">{{ rows|length }} series</span>
 </div>
 <p class="text-muted small mb-2">
-  Seasonally adjusted, thousands of employees. Detrended values = residual from trend model.
-  <em>pct=XX</em> = percentile of current value in full historical series (2000–present).
+  Seasonally adjusted, thousands of employees. Detrended columns show log deviations from pre-COVID counterfactual.
+  <em>pct=XX</em> = percentile of current share in full historical series (2000–present).
 </p>
 
 <!-- Footnotes -->
 <div class="mb-3 small text-muted" id="footnotes">
-  <div id="fn-ma60"><sup>1</sup> <strong>5-Year Moving Average Detrended Share:</strong> The employment share is measured relative to its trailing 60-month (5-year) moving average. The reported value is the percent deviation of the current share from its recent 5-year baseline.</div>
-  <div id="fn-hamilton"><sup>2</sup> <strong>Hamilton Filter Log Share Detrended:</strong> The log of the employment share is regressed on its own values from 24–27 months earlier, following Hamilton (2018). The residual from this regression is taken as the detrended log share.</div>
-  <div id="fn-poly3"><sup>3</sup> <strong>3rd-Degree Polynomial Log Employment Detrended:</strong> A third-degree polynomial time trend is fitted separately to the log of numerator and denominator employment. The detrended log share is constructed as the difference between the two residuals.</div>
+  <div id="fn-trend-level"><sup>1</sup> <strong>Dev. Log Level (Linear Trend):</strong> Log employment minus a linear time trend estimated on pre-COVID data (Jan 2000–Feb 2020) and extrapolated forward. Positive = above trend.</div>
+  <div id="fn-trend-share"><sup>2</sup> <strong>Dev. Log Share (Quad. Trend):</strong> Log employment share minus a quadratic time trend estimated on pre-COVID data and extrapolated forward. Positive = above trend.</div>
+  <div id="fn-ham-level"><sup>3</sup> <strong>Dev. Log Level (Hamilton):</strong> Log employment minus a Hamilton (2018) filter counterfactual generated recursively from pre-COVID coefficients. Positive = above counterfactual.</div>
+  <div id="fn-ham-share"><sup>4</sup> <strong>Dev. Log Share (Hamilton):</strong> Log employment share minus a Hamilton (2018) filter counterfactual generated recursively from pre-COVID coefficients. Positive = above counterfactual.</div>
 </div>
 
 <div class="table-responsive bls-table-wrapper">
@@ -28,16 +29,20 @@
         <th>{{ prev_label }}<br><small class="text-muted">(000s)</small></th>
         <th>Share<br><small class="text-muted">of denom</small></th>
         <th>
-          5 yr MA<br>detrended
-          <a href="#fn-ma60" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 1"><sup>1</sup></a>
+          Dev. Log Level<br>(Linear Trend)
+          <a href="#fn-trend-level" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 1"><sup>1</sup></a>
         </th>
         <th>
-          Hamilton filter<br>log share detrended
-          <a href="#fn-hamilton" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 2"><sup>2</sup></a>
+          Dev. Log Share<br>(Quad. Trend)
+          <a href="#fn-trend-share" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 2"><sup>2</sup></a>
         </th>
         <th>
-          3-deg Polynomial<br>log share detrended
-          <a href="#fn-poly3" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 3"><sup>3</sup></a>
+          Dev. Log Level<br>(Hamilton)
+          <a href="#fn-ham-level" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 3"><sup>3</sup></a>
+        </th>
+        <th>
+          Dev. Log Share<br>(Hamilton)
+          <a href="#fn-ham-share" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 4"><sup>4</sup></a>
         </th>
         <th>Denominator</th>
       </tr>
@@ -84,37 +89,37 @@
           {% endif %}
         </td>
 
-        <!-- MA60 detrended + percentile -->
-        <td class="text-end {% if row.detrended_ma60 is not none %}{{ 'text-success' if row.detrended_ma60 > 0 else 'text-danger' if row.detrended_ma60 < 0 else '' }}{% endif %}">
-          {% if row.detrended_ma60 is not none %}
-            {{ "%.4f"|format(row.detrended_ma60) }}
-            {% if row.detrended_ma60_pct is not none %}
-            <br><small class="text-muted">pct={{ row.detrended_ma60_pct }}</small>
-            {% endif %}
+        <!-- Dev. Log Level (Linear Trend) -->
+        <td class="text-end {% if row.dev_trend_level is not none %}{{ 'text-success' if row.dev_trend_level > 0 else 'text-danger' if row.dev_trend_level < 0 else '' }}{% endif %}">
+          {% if row.dev_trend_level is not none %}
+            {{ "%.3f"|format(row.dev_trend_level) }}
           {% else %}
             <span class="text-muted">—</span>
           {% endif %}
         </td>
 
-        <!-- Hamilton detrended + percentile -->
-        <td class="text-end {% if row.detrended_hamilton is not none %}{{ 'text-success' if row.detrended_hamilton > 0 else 'text-danger' if row.detrended_hamilton < 0 else '' }}{% endif %}">
-          {% if row.detrended_hamilton is not none %}
-            {{ "%.4f"|format(row.detrended_hamilton) }}
-            {% if row.detrended_hamilton_pct is not none %}
-            <br><small class="text-muted">pct={{ row.detrended_hamilton_pct }}</small>
-            {% endif %}
+        <!-- Dev. Log Share (Quad. Trend) -->
+        <td class="text-end {% if row.dev_trend_share is not none %}{{ 'text-success' if row.dev_trend_share > 0 else 'text-danger' if row.dev_trend_share < 0 else '' }}{% endif %}">
+          {% if row.dev_trend_share is not none %}
+            {{ "%.3f"|format(row.dev_trend_share) }}
           {% else %}
             <span class="text-muted">—</span>
           {% endif %}
         </td>
 
-        <!-- Poly3 detrended + percentile -->
-        <td class="text-end {% if row.detrended_poly3 is not none %}{{ 'text-success' if row.detrended_poly3 > 0 else 'text-danger' if row.detrended_poly3 < 0 else '' }}{% endif %}">
-          {% if row.detrended_poly3 is not none %}
-            {{ "%.4f"|format(row.detrended_poly3) }}
-            {% if row.detrended_poly3_pct is not none %}
-            <br><small class="text-muted">pct={{ row.detrended_poly3_pct }}</small>
-            {% endif %}
+        <!-- Dev. Log Level (Hamilton) -->
+        <td class="text-end {% if row.dev_hamilton_level is not none %}{{ 'text-success' if row.dev_hamilton_level > 0 else 'text-danger' if row.dev_hamilton_level < 0 else '' }}{% endif %}">
+          {% if row.dev_hamilton_level is not none %}
+            {{ "%.3f"|format(row.dev_hamilton_level) }}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Dev. Log Share (Hamilton) -->
+        <td class="text-end {% if row.dev_hamilton_share is not none %}{{ 'text-success' if row.dev_hamilton_share > 0 else 'text-danger' if row.dev_hamilton_share < 0 else '' }}{% endif %}">
+          {% if row.dev_hamilton_share is not none %}
+            {{ "%.3f"|format(row.dev_hamilton_share) }}
           {% else %}
             <span class="text-muted">—</span>
           {% endif %}

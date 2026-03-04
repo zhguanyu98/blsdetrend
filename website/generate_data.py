@@ -6,13 +6,12 @@ Run from the website/ directory:
 
 Outputs:
     data/table_data.json          — All 842 rows for main table
-    data/{series_id}.json         — Per-industry chart data
+    data/{series_id}.json         — Per-industry chart data (8 charts)
     data/{series_id}_export.csv   — Per-industry downloadable CSV
 """
 
 import json
-import os
-import sys
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -20,22 +19,17 @@ import pandas as pd
 from scipy.stats import percentileofscore
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BASE = Path(__file__).parent.parent          # BLS/
+BASE     = Path(__file__).parent.parent          # BLS/
 DATA_OUT = Path(__file__).parent / "data"
 DATA_OUT.mkdir(exist_ok=True)
 
-MAPPING_FILE   = BASE / "b1a_mapping_with_parent.csv"
-EMP_FILE       = BASE / "b1a_wide_seriesid.csv"
-SHARES_FILE    = BASE / "b1a_employment_shares.csv"
-DET_MA60_FILE  = BASE / "detrended" / "detrended_share_ma60.csv"
-DET_HAM_FILE   = BASE / "detrended" / "detrended_share_hamilton_logshare.csv"
-DET_POLY3_FILE = BASE / "detrended" / "detrended_share_poly3_logempdiff.csv"
-DET_LOGEMP_FILE= BASE / "detrended" / "detrended_logemp.csv"
+MAPPING_FILE = BASE / "b1a_mapping_with_parent.csv"
+EMP_FILE     = BASE / "b1a_wide_seriesid.csv"
+SHARES_FILE  = BASE / "b1a_employment_shares.csv"
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 def pct_of_score(series: pd.Series) -> float:
-    """Return percentile of most-recent non-NaN value in full series (0–100)."""
     s = series.dropna()
     if len(s) == 0:
         return None
@@ -43,7 +37,6 @@ def pct_of_score(series: pd.Series) -> float:
 
 
 def to_float(x):
-    """Convert to Python float, returning None for NaN."""
     if x is None:
         return None
     try:
@@ -57,77 +50,209 @@ def month_label(dt) -> str:
     return dt.strftime("%b-%y")
 
 
+def arr_to_list(arr, rd=6):
+    """Convert numpy array to list with None for NaN/inf."""
+    out = []
+    for v in arr:
+        v = float(v)
+        if np.isnan(v) or np.isinf(v):
+            out.append(None)
+        else:
+            out.append(round(v, rd))
+    return out
+
+
 # ── Load data ──────────────────────────────────────────────────────────────────
 print("Loading data…")
 
 mapping = pd.read_csv(MAPPING_FILE)
 mapping = mapping.sort_values("row_order").reset_index(drop=True)
 
-emp = pd.read_csv(EMP_FILE, index_col=0, parse_dates=True)
+emp    = pd.read_csv(EMP_FILE,    index_col=0, parse_dates=True)
 shares = pd.read_csv(SHARES_FILE, index_col=0, parse_dates=True)
-det_ma60  = pd.read_csv(DET_MA60_FILE,  index_col=0, parse_dates=True)
-det_ham   = pd.read_csv(DET_HAM_FILE,   index_col=0, parse_dates=True)
-det_poly3 = pd.read_csv(DET_POLY3_FILE, index_col=0, parse_dates=True)
-det_logemp= pd.read_csv(DET_LOGEMP_FILE,index_col=0, parse_dates=True)
 
-# Align all date indices to employment dates
 all_dates = emp.index
 date_strs = [d.strftime("%Y-%m-%d") for d in all_dates]
+n_dates   = len(all_dates)
 
-# Most recent and previous month labels
-last_dt  = emp.index[-1]
-prev_dt  = emp.index[-2]
+# Time index: integer months since Jan 2000 (= 0)
+time_index = np.array([(d.year - 2000) * 12 + (d.month - 1) for d in all_dates])
+
+# Pre-COVID mask: t ≤ Feb 2020
+feb2020      = pd.Timestamp("2020-02-01")
+pre_covid    = np.array(all_dates <= feb2020)          # bool array
+feb2020_idx  = int(np.where(pre_covid)[0][-1])        # last pre-COVID position
+
+MARCH2020_STR = "2020-03-01"
+
+last_dt  = all_dates[-1]
+prev_dt  = all_dates[-2]
 last_lbl = month_label(last_dt)
 prev_lbl = month_label(prev_dt)
+today_str = date.today().strftime("%Y-%m-%d")
+
+
+# ── Detrending functions ───────────────────────────────────────────────────────
+
+def compute_trend(log_vals: np.ndarray, degree: int):
+    """
+    Fit polynomial trend (degree 1 or 2) on pre-COVID data, extrapolate to all dates.
+    Returns (trend_log, resid_log) numpy arrays.
+    """
+    t = time_index
+    mask = pre_covid & ~np.isnan(log_vals)
+    if mask.sum() < 10:
+        nans = np.full(n_dates, np.nan)
+        return nans, nans
+
+    t_pre, y_pre = t[mask], log_vals[mask]
+    if degree == 1:
+        X_pre = np.column_stack([np.ones(len(t_pre)), t_pre])
+        X_all = np.column_stack([np.ones(n_dates),   t])
+    else:
+        X_pre = np.column_stack([np.ones(len(t_pre)), t_pre, t_pre**2])
+        X_all = np.column_stack([np.ones(n_dates),   t,    t**2])
+
+    coeffs = np.linalg.lstsq(X_pre, y_pre, rcond=None)[0]
+    trend  = X_all @ coeffs
+    resid  = log_vals - trend
+    return trend, resid
+
+
+def compute_hamilton(log_vals: np.ndarray):
+    """
+    Estimate Hamilton (2018) OLS on pre-COVID data.
+    Recursively generate counterfactual post-COVID using saved coefficients.
+    Returns (cf_log, resid_log) or (None, None) if insufficient data.
+    """
+    y = log_vals.copy()
+
+    # Need ≥60 usable pre-COVID observations
+    pre_count = int(np.sum(pre_covid & ~np.isnan(y)))
+    if pre_count < 60:
+        return None, None
+
+    # Build OLS design matrix on pre-COVID t with all four lags available
+    X_rows, y_rows = [], []
+    for t in range(27, n_dates):
+        if not pre_covid[t]:
+            break
+        if np.isnan(y[t]):
+            continue
+        lags = y[t-24], y[t-25], y[t-26], y[t-27]
+        if any(np.isnan(lags)):
+            continue
+        X_rows.append([1.0, *lags])
+        y_rows.append(y[t])
+
+    if len(X_rows) < 10:
+        return None, None
+
+    coeffs = np.linalg.lstsq(np.array(X_rows), np.array(y_rows), rcond=None)[0]
+    alpha, b1, b2, b3, b4 = coeffs
+
+    # Counterfactual: actual for pre-COVID, recursive thereafter
+    cf = np.full(n_dates, np.nan)
+    cf[:feb2020_idx + 1] = y[:feb2020_idx + 1]
+
+    for t in range(feb2020_idx + 1, n_dates):
+        lags = cf[t-24], cf[t-25], cf[t-26], cf[t-27]
+        if any(np.isnan(lags)):
+            continue
+        cf[t] = alpha + b1*lags[0] + b2*lags[1] + b3*lags[2] + b4*lags[3]
+
+    resid = y - cf
+    return cf, resid
+
+
+# ── Pre-compute detrended series for all industries ────────────────────────────
+print("Computing detrended series for all industries…")
+
+# DataFrames to collect results
+trend_lvl_cf  = pd.DataFrame(index=all_dates)   # linear trend log level
+trend_shr_cf  = pd.DataFrame(index=all_dates)   # quadratic trend log share
+resid_tlvl    = pd.DataFrame(index=all_dates)
+resid_tshr    = pd.DataFrame(index=all_dates)
+ham_cf_lvl    = pd.DataFrame(index=all_dates)   # Hamilton cf log level
+ham_cf_shr    = pd.DataFrame(index=all_dates)   # Hamilton cf log share
+resid_hlvl    = pd.DataFrame(index=all_dates)
+resid_hshr    = pd.DataFrame(index=all_dates)
+
+n_series = len(mapping)
+for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
+    sid = mrow["series_id"]
+
+    # Log employment level
+    if sid in emp.columns:
+        ev = emp[sid].reindex(all_dates).values.astype(float)
+    else:
+        ev = np.full(n_dates, np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        log_lvl = np.where(ev > 0, np.log(ev), np.nan)
+
+    # Log employment share
+    if sid in shares.columns:
+        sv = shares[sid].reindex(all_dates).values.astype(float)
+    else:
+        sv = np.full(n_dates, np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        log_shr = np.where(sv > 0, np.log(sv), np.nan)
+
+    # Method 2 — Trend extrapolation
+    t_lvl, r_tlvl = compute_trend(log_lvl, degree=1)
+    t_shr, r_tshr = compute_trend(log_shr, degree=2)
+    trend_lvl_cf[sid] = t_lvl
+    trend_shr_cf[sid] = t_shr
+    resid_tlvl[sid]   = r_tlvl
+    resid_tshr[sid]   = r_tshr
+
+    # Method 1 — Hamilton filter
+    cf_lvl, r_hlvl = compute_hamilton(log_lvl)
+    cf_shr, r_hshr = compute_hamilton(log_shr)
+    ham_cf_lvl[sid] = cf_lvl if cf_lvl is not None else np.nan
+    ham_cf_shr[sid] = cf_shr if cf_shr is not None else np.nan
+    resid_hlvl[sid] = r_hlvl if r_hlvl is not None else np.nan
+    resid_hshr[sid] = r_hshr if r_hshr is not None else np.nan
+
+    if (loop_i + 1) % 100 == 0 or (loop_i + 1) == n_series:
+        print(f"  {loop_i + 1}/{n_series} series computed…")
 
 
 # ── Build table_data.json ──────────────────────────────────────────────────────
 print("Building table_data.json…")
 
-rows = []
-for _, row in mapping.iterrows():
-    sid = row["series_id"]
-    name = row["industry_name"]
-    lvl  = int(row["display_level"])
-    parent_sid = row["parent_series_id"]
+def last_nonnan(df, col):
+    """Most recent non-NaN value from df[col], rounded to 3 dp."""
+    if col not in df.columns:
+        return None
+    s = df[col].dropna()
+    if len(s) == 0:
+        return None
+    v = float(s.iloc[-1])
+    return None if (np.isnan(v) or np.isinf(v)) else round(v, 3)
 
-    # Look up parent (denominator) name
+
+rows = []
+for _, mrow in mapping.iterrows():
+    sid        = mrow["series_id"]
+    name       = mrow["industry_name"]
+    lvl        = int(mrow["display_level"])
+    parent_sid = mrow["parent_series_id"]
+
     parent_row = mapping.loc[mapping["series_id"] == parent_sid]
     denom_name = parent_row["industry_name"].iloc[0] if len(parent_row) > 0 else name
 
-    # Employment
-    emp_col = emp[sid] if sid in emp.columns else None
+    emp_col    = emp[sid] if sid in emp.columns else None
     emp_recent = to_float(emp_col.iloc[-1]) if emp_col is not None else None
     emp_prev   = to_float(emp_col.iloc[-2]) if emp_col is not None else None
 
-    # Share
-    share_val = None
-    share_pct = None
+    share_val = share_pct = None
     if sid in shares.columns:
         s_series = shares[sid]
-        share_val = to_float(s_series.dropna().iloc[-1]) if s_series.dropna().shape[0] > 0 else None
-        share_pct = pct_of_score(s_series)
-
-    # Detrended MA60
-    det_ma60_val = None; det_ma60_pct = None
-    if sid in det_ma60.columns:
-        s = det_ma60[sid]
-        det_ma60_val = to_float(s.dropna().iloc[-1]) if s.dropna().shape[0] > 0 else None
-        det_ma60_pct = pct_of_score(s)
-
-    # Detrended Hamilton
-    det_ham_val = None; det_ham_pct = None
-    if sid in det_ham.columns:
-        s = det_ham[sid]
-        det_ham_val = to_float(s.dropna().iloc[-1]) if s.dropna().shape[0] > 0 else None
-        det_ham_pct = pct_of_score(s)
-
-    # Detrended Poly3
-    det_poly3_val = None; det_poly3_pct = None
-    if sid in det_poly3.columns:
-        s = det_poly3[sid]
-        det_poly3_val = to_float(s.dropna().iloc[-1]) if s.dropna().shape[0] > 0 else None
-        det_poly3_pct = pct_of_score(s)
+        s_dropna = s_series.dropna()
+        if len(s_dropna) > 0:
+            share_val = to_float(s_dropna.iloc[-1])
+            share_pct = pct_of_score(s_series)
 
     rows.append({
         "series_id":            sid,
@@ -140,12 +265,10 @@ for _, row in mapping.iterrows():
         "share":                share_val,
         "share_pct":            share_pct,
         "denom_name":           denom_name,
-        "detrended_ma60":       det_ma60_val,
-        "detrended_ma60_pct":   det_ma60_pct,
-        "detrended_hamilton":   det_ham_val,
-        "detrended_hamilton_pct": det_ham_pct,
-        "detrended_poly3":      det_poly3_val,
-        "detrended_poly3_pct":  det_poly3_pct,
+        "dev_trend_level":      last_nonnan(resid_tlvl, sid),
+        "dev_trend_share":      last_nonnan(resid_tshr, sid),
+        "dev_hamilton_level":   last_nonnan(resid_hlvl, sid),
+        "dev_hamilton_share":   last_nonnan(resid_hshr, sid),
     })
 
 with open(DATA_OUT / "table_data.json", "w") as f:
@@ -158,78 +281,94 @@ print(f"  → {len(rows)} rows written to table_data.json")
 print("Building per-industry files…")
 
 n = len(mapping)
-for i, mrow in mapping.iterrows():
-    sid  = mrow["series_id"]
-    name = mrow["industry_name"]
+for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
+    sid        = mrow["series_id"]
+    name       = mrow["industry_name"]
     parent_sid = mrow["parent_series_id"]
 
     parent_row = mapping.loc[mapping["series_id"] == parent_sid]
     denom_name = parent_row["industry_name"].iloc[0] if len(parent_row) > 0 else name
 
-    # Helper: series → list with None for NaN, aligned to all_dates
-    def series_to_list(df, col):
-        if col not in df.columns:
-            return [None] * len(all_dates)
-        s = df[col].reindex(all_dates)
-        return [to_float(v) for v in s]
+    # Raw values
+    ev = emp[sid].reindex(all_dates).values.astype(float)   if sid in emp.columns    else np.full(n_dates, np.nan)
+    sv = shares[sid].reindex(all_dates).values.astype(float) if sid in shares.columns else np.full(n_dates, np.nan)
 
-    share_list   = series_to_list(shares,    sid)
-    ma60_list    = series_to_list(det_ma60,  sid)
-    ham_list     = series_to_list(det_ham,   sid)
-    poly3_list   = series_to_list(det_poly3, sid)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        log_lvl = np.where(ev > 0, np.log(ev), np.nan)
+        log_shr = np.where(sv > 0, np.log(sv), np.nan)
 
-    # Log-emp components: numerator = sid, denominator = parent_sid
-    logemp_num   = series_to_list(det_logemp, sid)
-    logemp_denom = series_to_list(det_logemp, parent_sid)
+    # Trend CFs (log space)
+    t_lvl_v  = trend_lvl_cf[sid].values
+    t_shr_v  = trend_shr_cf[sid].values
+    h_lvl_v  = ham_cf_lvl[sid].values
+    h_shr_v  = ham_cf_shr[sid].values
+    r_tlvl_v = resid_tlvl[sid].values
+    r_tshr_v = resid_tshr[sid].values
+    r_hlvl_v = resid_hlvl[sid].values
+    r_hshr_v = resid_hshr[sid].values
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        trend_lvl_impl  = np.where(~np.isnan(t_lvl_v), np.exp(t_lvl_v), np.nan)
+        trend_shr_impl  = np.where(~np.isnan(t_shr_v), np.exp(t_shr_v), np.nan)  # decimal
+        ham_lvl_impl    = np.where(~np.isnan(h_lvl_v), np.exp(h_lvl_v), np.nan)
+        ham_shr_impl    = np.where(~np.isnan(h_shr_v), np.exp(h_shr_v), np.nan)  # decimal
 
     industry_data = {
-        "series_id":              sid,
-        "industry_name":          name,
-        "denom_name":             denom_name,
-        "parent_series_id":       parent_sid,
-        "dates":                  date_strs,
-        "share":                  share_list,
-        "detrended_ma60":         ma60_list,
-        "detrended_hamilton":     ham_list,
-        "detrended_poly3":        poly3_list,
-        "log_emp_num_poly3":      logemp_num,
-        "log_emp_denom_poly3":    logemp_denom,
-        "csv_filename":           f"{sid}_export.csv",
+        "series_id":            sid,
+        "industry_name":        name,
+        "denom_name":           denom_name,
+        "parent_series_id":     parent_sid,
+        "dates":                date_strs,
+        "march2020":            MARCH2020_STR,
+        # Actual series
+        "emp_level":            arr_to_list(ev,         2),   # thousands
+        "emp_share_pct":        arr_to_list(sv * 100,   4),   # percentage points
+        # Method 2 — Trend extrapolation
+        "trend_level_cf":       arr_to_list(trend_lvl_impl,   2),  # trend-implied emp (thousands)
+        "trend_share_cf_pct":   arr_to_list(trend_shr_impl * 100, 4),  # trend-implied share (ppt)
+        "resid_trend_level":    arr_to_list(r_tlvl_v,  6),
+        "resid_trend_share":    arr_to_list(r_tshr_v,  6),
+        # Method 1 — Hamilton filter
+        "hamilton_cf_level":    arr_to_list(ham_lvl_impl,     2),  # Hamilton-implied emp (thousands)
+        "hamilton_cf_share_pct":arr_to_list(ham_shr_impl * 100, 4),
+        "resid_hamilton_level": arr_to_list(r_hlvl_v,  6),
+        "resid_hamilton_share": arr_to_list(r_hshr_v,  6),
+        "csv_filename":         f"{sid}_export.csv",
     }
 
     with open(DATA_OUT / f"{sid}.json", "w") as f:
         json.dump(industry_data, f)
 
     # ── Per-industry export CSV ──────────────────────────────────────────────
-    # Build a DataFrame with all series aligned to all_dates
-    emp_num   = emp[sid].reindex(all_dates) if sid in emp.columns else pd.Series([np.nan]*len(all_dates), index=all_dates)
-    emp_denom = emp[parent_sid].reindex(all_dates) if parent_sid in emp.columns else pd.Series([np.nan]*len(all_dates), index=all_dates)
-
-    share_s   = shares[sid].reindex(all_dates)    if sid in shares.columns    else pd.Series([np.nan]*len(all_dates), index=all_dates)
-    ma60_s    = det_ma60[sid].reindex(all_dates)  if sid in det_ma60.columns  else pd.Series([np.nan]*len(all_dates), index=all_dates)
-    ham_s     = det_ham[sid].reindex(all_dates)   if sid in det_ham.columns   else pd.Series([np.nan]*len(all_dates), index=all_dates)
-    poly3_s   = det_poly3[sid].reindex(all_dates) if sid in det_poly3.columns else pd.Series([np.nan]*len(all_dates), index=all_dates)
-    logemp_num_s   = det_logemp[sid].reindex(all_dates)        if sid in det_logemp.columns        else pd.Series([np.nan]*len(all_dates), index=all_dates)
-    logemp_denom_s = det_logemp[parent_sid].reindex(all_dates) if parent_sid in det_logemp.columns else pd.Series([np.nan]*len(all_dates), index=all_dates)
-
     export_df = pd.DataFrame({
-        "date":                                    all_dates.strftime("%Y-%m-%d"),
-        "numerator_series_id":                     sid,
-        "denominator_series_id":                   parent_sid,
-        "numerator_name":                          name,
-        "denominator_name":                        denom_name,
-        "emp_numerator":                           emp_num.values,
-        "emp_denominator":                         emp_denom.values,
-        "share":                                   share_s.values,
-        "detrended_share_ma60":                    ma60_s.values,
-        "detrended_share_hamilton_logshare":       ham_s.values,
-        "detrended_share_poly3_logempdiff":        poly3_s.values,
-        "detrended_log_emp_numerator_poly3":       logemp_num_s.values,
-        "detrended_log_emp_denominator_poly3":     logemp_denom_s.values,
+        "date":                         all_dates.strftime("%Y-%m"),
+        "employment_level":             ev,
+        "employment_share":             sv,
+        "log_level":                    log_lvl,
+        "log_share":                    log_shr,
+        "trend_level":                  t_lvl_v,
+        "trend_share":                  t_shr_v,
+        "predicted_level_trend":        trend_lvl_impl,
+        "predicted_share_trend":        trend_shr_impl,
+        "resid_log_level_linear_trend": r_tlvl_v,
+        "resid_log_share_quad_trend":   r_tshr_v,
+        "hamilton_cf_log_level":        h_lvl_v,
+        "hamilton_cf_log_share":        h_shr_v,
+        "predicted_level_hamilton":     ham_lvl_impl,
+        "predicted_share_hamilton":     ham_shr_impl,
+        "resid_log_level_hamilton":     r_hlvl_v,
+        "resid_log_share_hamilton":     r_hshr_v,
     })
-    export_df.to_csv(DATA_OUT / f"{sid}_export.csv", index=False)
 
-    if (i + 1) % 100 == 0 or (i + 1) == n:
-        print(f"  {i+1}/{n} industries processed…")
+    csv_path = DATA_OUT / f"{sid}_export.csv"
+    with open(csv_path, "w") as f:
+        f.write(f"# Industry: {name}\n")
+        f.write(f"# Series ID: {sid}\n")
+        f.write(f"# Denominator: {denom_name} ({parent_sid})\n")
+        f.write(f"# Generated: {today_str}\n")
+        export_df.to_csv(f, index=False)
+
+    if (loop_i + 1) % 100 == 0 or (loop_i + 1) == n:
+        print(f"  {loop_i + 1}/{n} industries processed…")
 
 print("Done! All files written to website/data/")
