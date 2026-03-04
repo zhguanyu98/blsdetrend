@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}{{ series_data.industry_name }} — BLS Employment Analysis{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
+  <a href="/" class="btn btn-sm btn-outline-secondary">← Back to Table</a>
+  <h5 class="mb-0">{{ series_data.industry_name }}</h5>
+  <code class="text-muted small">{{ series_data.series_id }}</code>
+</div>
+<p class="text-muted small mb-3">
+  Share of: <strong>{{ series_data.denom_name }}</strong>
+  &nbsp;|&nbsp; Denominator series: <code>{{ series_data.parent_series_id }}</code>
+</p>
+
+<!-- Download button -->
+<div class="mb-3">
+  <a href="/download/{{ series_data.series_id }}" class="btn btn-sm btn-outline-primary">
+    ⬇ Download CSV
+  </a>
+</div>
+
+<!-- Charts grid -->
+<div class="row g-3">
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm">
+      <div class="card-header small fw-semibold">Employment Share</div>
+      <div class="card-body p-2">
+        <div id="chart-share" style="height:320px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm">
+      <div class="card-header small fw-semibold">Detrended Share — 5 YR Moving Average</div>
+      <div class="card-body p-2">
+        <div id="chart-ma60" style="height:320px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm">
+      <div class="card-header small fw-semibold">Detrended Log Share — Hamilton Filter</div>
+      <div class="card-body p-2">
+        <div id="chart-hamilton" style="height:320px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm">
+      <div class="card-header small fw-semibold">Detrended Log Share — 3rd Degree Polynomial</div>
+      <div class="card-body p-2">
+        <div id="chart-poly3" style="height:320px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const d = {{ series_json | safe }};
+
+const DATES = d.dates;
+const LAYOUT_BASE = {
+  margin: {t: 20, b: 40, l: 55, r: 20},
+  xaxis: {type: 'date', showgrid: false, tickformat: '%Y'},
+  yaxis: {showgrid: true, gridcolor: '#eee', zeroline: false},
+  hovermode: 'x unified',
+  legend: {orientation: 'h', y: -0.15},
+  plot_bgcolor: '#fff',
+  paper_bgcolor: '#fff',
+};
+const CONFIG = {responsive: true, displayModeBar: false};
+
+// ── Chart 1: Share ─────────────────────────────────────────────────────────
+Plotly.newPlot('chart-share', [{
+  x: DATES, y: d.share,
+  type: 'scatter', mode: 'lines',
+  line: {color: '#2563eb', width: 1.5},
+  name: 'Share',
+  connectgaps: false,
+}], {
+  ...LAYOUT_BASE,
+  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.3f', title: {text: 'Share', font: {size: 11}}},
+}, CONFIG);
+
+// ── Chart 2: MA60 detrended ────────────────────────────────────────────────
+Plotly.newPlot('chart-ma60', [
+  {x: DATES, y: d.detrended_ma60,
+   type: 'scatter', mode: 'lines',
+   line: {color: '#2563eb', width: 1.5},
+   name: 'MA60 residual',
+   connectgaps: false,
+  },
+  {x: [DATES[0], DATES[DATES.length-1]], y: [0, 0],
+   type: 'scatter', mode: 'lines',
+   line: {color: '#dc2626', width: 1, dash: 'dash'},
+   name: 'Zero', showlegend: false,
+  }
+], {
+  ...LAYOUT_BASE,
+  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f', title: {text: 'Share residual', font: {size: 11}}},
+}, CONFIG);
+
+// ── Chart 3: Hamilton detrended ────────────────────────────────────────────
+Plotly.newPlot('chart-hamilton', [
+  {x: DATES, y: d.detrended_hamilton,
+   type: 'scatter', mode: 'lines',
+   line: {color: '#2563eb', width: 1.5},
+   name: 'Hamilton residual',
+   connectgaps: false,
+  },
+  {x: [DATES[0], DATES[DATES.length-1]], y: [0, 0],
+   type: 'scatter', mode: 'lines',
+   line: {color: '#dc2626', width: 1, dash: 'dash'},
+   name: 'Zero', showlegend: false,
+  }
+], {
+  ...LAYOUT_BASE,
+  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f', title: {text: 'Log share residual', font: {size: 11}}},
+}, CONFIG);
+
+// ── Chart 4: Poly3 decomposition ───────────────────────────────────────────
+// bars: numerator log-emp residual (blue), denominator (orange)
+// line: total share deviation = poly3 residual (red)
+Plotly.newPlot('chart-poly3', [
+  {x: DATES, y: d.log_emp_num_poly3,
+   type: 'bar', name: d.industry_name + ' (log-emp residual)',
+   marker: {color: 'rgba(37,99,235,0.7)'},
+  },
+  {x: DATES, y: d.log_emp_denom_poly3.map(v => v === null ? null : -v),
+   type: 'bar', name: '−' + d.denom_name + ' (log-emp residual)',
+   marker: {color: 'rgba(249,115,22,0.7)'},
+  },
+  {x: DATES, y: d.detrended_poly3,
+   type: 'scatter', mode: 'lines',
+   line: {color: '#dc2626', width: 2},
+   name: 'Share deviation (poly3)',
+  },
+  {x: [DATES[0], DATES[DATES.length-1]], y: [0, 0],
+   type: 'scatter', mode: 'lines',
+   line: {color: '#666', width: 1, dash: 'dot'},
+   name: 'Zero', showlegend: false,
+  }
+], {
+  ...LAYOUT_BASE,
+  barmode: 'relative',
+  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f', title: {text: 'Log share residual', font: {size: 11}}},
+}, CONFIG);
+</script>
+{% endblock %}

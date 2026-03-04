@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}BLS B-1a Employment Table{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-2 gap-3">
+  <h5 class="mb-0">Table B-1a: Employees on Nonfarm Payrolls by Industry Sector</h5>
+  <span class="badge bg-secondary">{{ rows|length }} series</span>
+</div>
+<p class="text-muted small mb-2">
+  Seasonally adjusted, thousands of employees. Detrended values = residual from trend model.
+  <em>pct=XX</em> = percentile of current value in full historical series (2000–present).
+</p>
+
+<!-- Footnotes -->
+<div class="mb-3 small text-muted" id="footnotes">
+  <div id="fn-ma60"><sup>1</sup> <strong>5-Year Moving Average Detrended Share:</strong> The employment share is measured relative to its trailing 60-month (5-year) moving average. The reported value is the percent deviation of the current share from its recent 5-year baseline.</div>
+  <div id="fn-hamilton"><sup>2</sup> <strong>Hamilton Filter Log Share Detrended:</strong> The log of the employment share is regressed on its own values from 24–27 months earlier, following Hamilton (2018). The residual from this regression is taken as the detrended log share.</div>
+  <div id="fn-poly3"><sup>3</sup> <strong>3rd-Degree Polynomial Log Employment Detrended:</strong> A third-degree polynomial time trend is fitted separately to the log of numerator and denominator employment. The detrended log share is constructed as the difference between the two residuals.</div>
+</div>
+
+<div class="table-responsive bls-table-wrapper">
+  <table class="table table-sm table-bordered table-hover bls-table" id="bls-main-table">
+    <thead class="sticky-top bg-white">
+      <tr class="text-center align-middle small">
+        <th class="text-start" style="min-width:260px">Industry</th>
+        <th>{{ last_label }}<br><small class="text-muted">(000s)</small></th>
+        <th>{{ prev_label }}<br><small class="text-muted">(000s)</small></th>
+        <th>Share<br><small class="text-muted">of denom</small></th>
+        <th>
+          5 yr MA<br>detrended
+          <a href="#fn-ma60" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 1"><sup>1</sup></a>
+        </th>
+        <th>
+          Hamilton filter<br>log share detrended
+          <a href="#fn-hamilton" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 2"><sup>2</sup></a>
+        </th>
+        <th>
+          3-deg Polynomial<br>log share detrended
+          <a href="#fn-poly3" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 3"><sup>3</sup></a>
+        </th>
+        <th>Denominator</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set lvl = row.display_level %}
+      {% set indent_px = lvl * 16 %}
+      <tr class="lvl-{{ lvl }}{% if lvl == 0 %} table-dark fw-bold{% elif lvl == 1 %} table-secondary fw-semibold{% elif lvl == 2 %} fw-semibold{% endif %}">
+        <!-- Industry name -->
+        <td class="industry-name" style="padding-left: {{ indent_px + 8 }}px">
+          <a href="/{{ row.series_id }}" class="text-decoration-none industry-link {% if lvl <= 1 %}text-reset{% endif %}">
+            {{ row.industry_name }}
+          </a>
+        </td>
+
+        <!-- Recent employment -->
+        <td class="text-end {% if row.emp_recent is none %}text-muted{% endif %}">
+          {% if row.emp_recent is not none %}
+            {{ "{:,.1f}".format(row.emp_recent) }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+
+        <!-- Previous month employment -->
+        <td class="text-end {% if row.emp_prev is none %}text-muted{% endif %}">
+          {% if row.emp_prev is not none %}
+            {{ "{:,.1f}".format(row.emp_prev) }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+
+        <!-- Share + percentile -->
+        <td class="text-end">
+          {% if row.share is not none %}
+            {{ "%.4f"|format(row.share) }}
+            {% if row.share_pct is not none %}
+            <br><small class="text-muted">pct={{ row.share_pct }}</small>
+            {% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+
+        <!-- MA60 detrended + percentile -->
+        <td class="text-end {% if row.detrended_ma60 is not none %}{{ 'text-success' if row.detrended_ma60 > 0 else 'text-danger' if row.detrended_ma60 < 0 else '' }}{% endif %}">
+          {% if row.detrended_ma60 is not none %}
+            {{ "%.4f"|format(row.detrended_ma60) }}
+            {% if row.detrended_ma60_pct is not none %}
+            <br><small class="text-muted">pct={{ row.detrended_ma60_pct }}</small>
+            {% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Hamilton detrended + percentile -->
+        <td class="text-end {% if row.detrended_hamilton is not none %}{{ 'text-success' if row.detrended_hamilton > 0 else 'text-danger' if row.detrended_hamilton < 0 else '' }}{% endif %}">
+          {% if row.detrended_hamilton is not none %}
+            {{ "%.4f"|format(row.detrended_hamilton) }}
+            {% if row.detrended_hamilton_pct is not none %}
+            <br><small class="text-muted">pct={{ row.detrended_hamilton_pct }}</small>
+            {% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Poly3 detrended + percentile -->
+        <td class="text-end {% if row.detrended_poly3 is not none %}{{ 'text-success' if row.detrended_poly3 > 0 else 'text-danger' if row.detrended_poly3 < 0 else '' }}{% endif %}">
+          {% if row.detrended_poly3 is not none %}
+            {{ "%.4f"|format(row.detrended_poly3) }}
+            {% if row.detrended_poly3_pct is not none %}
+            <br><small class="text-muted">pct={{ row.detrended_poly3_pct }}</small>
+            {% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+
+        <!-- Denominator name (rightmost) -->
+        <td class="small text-muted">{{ row.denom_name }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
