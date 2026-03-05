@@ -33,6 +33,11 @@ mapping    = pd.read_csv(BASE / "b1a_mapping_with_parent.csv")
 mapping    = mapping.sort_values("row_order").reset_index(drop=True)
 id_to_row  = {row["series_id"]: row for _, row in mapping.iterrows()}
 id_to_name = {row["series_id"]: row["industry_name"] for _, row in mapping.iterrows()}
+id_to_idx  = {row["series_id"]: i for i, (_, row) in enumerate(mapping.iterrows())}
+
+# Pre-build level array for fast backward scan
+_levels = mapping["display_level"].astype(int).values
+_sids   = mapping["series_id"].values
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -45,25 +50,25 @@ def goods_or_service(sc: int) -> str:
     return TOTAL_PRIVATE_ID
 
 
-def find_ancestor_at_level(sid: str, target_lvl: int, max_hops: int = 30) -> str | None:
+def find_ancestor_at_level(sid: str, target_lvl: int) -> str | None:
     """
-    Walk the parent chain (inclusive of sid itself) and return the first
-    series_id whose display_level == target_lvl.
-    Returns None if no such ancestor is found before reaching the root.
+    Scan backwards through the row_order-sorted mapping from sid's position.
+    Return the first row whose display_level == target_lvl.
+    Stop (return None) if we encounter a row whose display_level < target_lvl,
+    since that means we've left the scope where a target-level ancestor exists.
+
+    This is more reliable than walking parent_series_id chains, because BLS
+    parent_series_id fields often skip directly to Total private (level 1).
     """
-    visited = set()
-    current = sid
-    for _ in range(max_hops):
-        if current in visited or current not in id_to_row:
-            return None
-        visited.add(current)
-        row = id_to_row[current]
-        if int(row["display_level"]) == target_lvl:
-            return current
-        parent = row["parent_series_id"]
-        if parent == current:        # root node (total nonfarm is its own parent)
-            return None
-        current = parent
+    if sid not in id_to_idx:
+        return None
+    start = id_to_idx[sid]
+    for i in range(start - 1, -1, -1):
+        lvl = _levels[i]
+        if lvl == target_lvl:
+            return _sids[i]
+        if lvl < target_lvl:
+            return None   # overshot; no ancestor at this level in scope
     return None
 
 
