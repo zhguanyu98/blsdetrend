@@ -70,11 +70,11 @@
 </div>
 
 <!-- ── Row 3: Raw-share Quad/Linear (option-dependent) ──────────────────── -->
-<h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-rs">Employment Share — Raw Quadratic/Linear Trend</h6>
+<h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-rs">Employment Share — Raw Linear Trend</h6>
 <div class="row g-3">
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold" id="hdr-rs-actual">Actual vs. Quadratic/Linear Trend</div>
+      <div class="card-header small fw-semibold" id="hdr-rs-actual">Actual vs. Linear Trend</div>
       <div class="card-body p-2"><div id="chart-rs-actual" style="height:300px"></div></div>
     </div>
   </div>
@@ -170,7 +170,7 @@ function renderShareCharts(opt) {
     {x:DATES, y:o.emp_share_pct,      type:'scatter', mode:'lines',
      line:{color:'#2563eb',width:1.5}, name:'Actual Share'},
     {x:DATES, y:o.trend_rs_share_pct, type:'scatter', mode:'lines',
-     line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Quad./Lin. Trend'},
+     line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Linear Trend'},
   ], {...BASE_LAYOUT,
       yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.3f',
              title:{text:`Employment Share (%)  ${denomLabel}`,font:{size:11}}},

@@ -21,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import percentileofscore, t as t_dist
+from scipy.stats import percentileofscore
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE     = Path(__file__).parent.parent
@@ -118,10 +118,9 @@ def fit_log_linear(log_vals: np.ndarray):
     return trend, resid
 
 
-def fit_raw_quadratic(raw_vals: np.ndarray):
+def fit_raw_linear(raw_vals: np.ndarray):
     """
-    Quadratic trend on raw values, Jan 2010–Feb 2020.
-    Falls back to linear if t² coefficient p-value > 0.05.
+    Linear trend on raw values, Jan 2010–Feb 2020.
     Returns (trend_raw, resid_pct) where resid_pct = (actual−pred)/pred.
     NaN before Jan 2010.
     """
@@ -131,27 +130,10 @@ def fit_raw_quadratic(raw_vals: np.ndarray):
         nans = np.full(n_dates, np.nan)
         return nans, nans
     t_fit, y_fit = t[mask], raw_vals[mask]
-    n_obs = len(y_fit)
-
-    X2   = np.column_stack([np.ones(n_obs), t_fit, t_fit**2])
-    c2   = np.linalg.lstsq(X2, y_fit, rcond=None)[0]
-    res2 = y_fit - X2 @ c2
-    s2   = np.dot(res2, res2) / (n_obs - 3)
-    try:
-        se_q = np.sqrt(max(s2 * np.linalg.inv(X2.T @ X2)[2, 2], 0.0))
-        p_q  = 2 * t_dist.sf(abs(c2[2] / se_q), df=n_obs - 3) if se_q > 0 else 1.0
-    except np.linalg.LinAlgError:
-        p_q = 1.0
-
-    if p_q <= 0.05:
-        X_all     = np.column_stack([np.ones(n_dates), t, t**2])
-        trend_all = X_all @ c2
-    else:
-        X1        = np.column_stack([np.ones(n_obs), t_fit])
-        c1        = np.linalg.lstsq(X1, y_fit, rcond=None)[0]
-        X_all     = np.column_stack([np.ones(n_dates), t])
-        trend_all = X_all @ c1
-
+    X_fit     = np.column_stack([np.ones(len(t_fit)), t_fit])
+    X_all     = np.column_stack([np.ones(n_dates), t])
+    coeffs    = np.linalg.lstsq(X_fit, y_fit, rcond=None)[0]
+    trend_all = X_all @ coeffs
     trend = np.where(np.arange(n_dates) >= fit_start_idx, trend_all, np.nan)
     with np.errstate(invalid="ignore", divide="ignore"):
         resid_pct = np.where((trend != 0) & (np.arange(n_dates) >= fit_start_idx),
@@ -187,7 +169,7 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
             log_shr = np.where(sv > 0, np.log(sv), np.nan)
 
         trend_ls, resid_ls = fit_log_linear(log_shr)
-        trend_rs, resid_rs = fit_raw_quadratic(sv)
+        trend_rs, resid_rs = fit_raw_linear(sv)
 
         opts[opt] = dict(sv=sv, trend_ls=trend_ls, resid_ls=resid_ls,
                          trend_rs=trend_rs, resid_rs=resid_rs,
