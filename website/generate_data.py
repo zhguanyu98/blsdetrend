@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import percentileofscore
+from scipy.stats import percentileofscore, t as t_dist
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE     = Path(__file__).parent.parent          # BLS/
@@ -101,7 +101,9 @@ today_str = date.today().strftime("%Y-%m-%d")
 
 def compute_trend(log_vals: np.ndarray):
     """
-    Fit quadratic trend on Jan 2010 – Feb 2020 data.
+    Fit polynomial trend on Jan 2010 – Feb 2020, starting at degree 3.
+    Drop the highest-degree term and re-estimate if its p-value > 0.05,
+    repeating down to degree 1 (always kept).
     Extrapolates from Jan 2010 onwards; NaN before Jan 2010.
     Returns (trend_log, resid_log) numpy arrays.
     """
@@ -112,13 +114,46 @@ def compute_trend(log_vals: np.ndarray):
         return nans, nans
 
     t_fit, y_fit = t[mask], log_vals[mask]
-    X_fit = np.column_stack([np.ones(len(t_fit)), t_fit, t_fit**2])
-    X_all = np.column_stack([np.ones(n_dates),   t,    t**2])
+    n_obs = len(y_fit)
 
-    coeffs    = np.linalg.lstsq(X_fit, y_fit, rcond=None)[0]
-    trend_all = X_all @ coeffs
+    final_coeffs = None
+    final_degree = 1
 
-    # Only expose trend from Jan 2010 onwards
+    for degree in (3, 2, 1):
+        cols = [np.ones(n_obs)] + [t_fit**d for d in range(1, degree + 1)]
+        X_fit = np.column_stack(cols)
+        n_params = X_fit.shape[1]
+
+        coeffs = np.linalg.lstsq(X_fit, y_fit, rcond=None)[0]
+
+        if degree == 1:
+            final_coeffs = coeffs
+            final_degree = 1
+            break
+
+        # t-test on highest-degree term
+        resid_fit = y_fit - X_fit @ coeffs
+        s2 = np.dot(resid_fit, resid_fit) / (n_obs - n_params)
+        try:
+            XtX_inv = np.linalg.inv(X_fit.T @ X_fit)
+        except np.linalg.LinAlgError:
+            continue
+        se_high = np.sqrt(max(s2 * XtX_inv[-1, -1], 0.0))
+        if se_high == 0:
+            continue
+        p_val = 2 * t_dist.sf(abs(coeffs[-1] / se_high), df=n_obs - n_params)
+
+        if p_val <= 0.05:
+            final_coeffs = coeffs
+            final_degree = degree
+            break
+        # else: drop this degree and try lower
+
+    # Extrapolate using final polynomial
+    cols_all = [np.ones(n_dates)] + [t**d for d in range(1, final_degree + 1)]
+    trend_all = np.column_stack(cols_all) @ final_coeffs
+
+    # NaN before Jan 2010
     trend = np.where(np.arange(n_dates) >= fit_start_idx, trend_all, np.nan)
     resid = log_vals - trend
     return trend, resid
@@ -126,31 +161,29 @@ def compute_trend(log_vals: np.ndarray):
 
 def compute_hamilton(log_vals: np.ndarray):
     """
-    Estimate Hamilton (2018) OLS on pre-COVID data.
-    Pre-COVID: counterfactual = in-sample OLS fitted values (≠ actual).
-    Post-COVID: recursive counterfactual; lags drawn from actual when ≤ Feb 2020,
-                from already-computed counterfactual when > Feb 2020.
-    Returns (cf_log, resid_log) or (None, None) if insufficient data.
+    Estimate Hamilton (2018) OLS on Jan 2010 – Feb 2020.
+    Apply coefficients to actual lagged values at every date (no recursion).
+    Returns (implied_log, resid_log) or (None, None) if insufficient data.
     """
     y = log_vals.copy()
 
-    # Need ≥60 usable pre-COVID observations
-    pre_count = int(np.sum(pre_covid & ~np.isnan(y)))
-    if pre_count < 60:
+    # Need ≥60 usable observations in fit window
+    fit_count = int(np.sum(fit_window & ~np.isnan(y)))
+    if fit_count < 60:
         return None, None
 
-    # Build OLS design matrix on pre-COVID t with all four lags available
+    # Build OLS on fit_window with all four lags available
     X_rows, y_rows = [], []
-    for t in range(27, n_dates):
-        if not pre_covid[t]:
-            break
-        if np.isnan(y[t]):
+    for t_idx in range(27, n_dates):
+        if not fit_window[t_idx]:
             continue
-        lags = y[t-24], y[t-25], y[t-26], y[t-27]
+        if np.isnan(y[t_idx]):
+            continue
+        lags = y[t_idx-24], y[t_idx-25], y[t_idx-26], y[t_idx-27]
         if any(np.isnan(lags)):
             continue
         X_rows.append([1.0, *lags])
-        y_rows.append(y[t])
+        y_rows.append(y[t_idx])
 
     if len(X_rows) < 10:
         return None, None
@@ -158,31 +191,13 @@ def compute_hamilton(log_vals: np.ndarray):
     coeffs = np.linalg.lstsq(np.array(X_rows), np.array(y_rows), rcond=None)[0]
     alpha, b1, b2, b3, b4 = coeffs
 
+    # Apply directly using actual lagged values at every date (no recursion)
     cf = np.full(n_dates, np.nan)
-
-    # Pre-COVID: in-sample fitted values (requires t ≥ 27 for all lags to exist)
-    for t in range(27, feb2020_idx + 1):
-        if np.isnan(y[t]):
-            continue
-        lags = y[t-24], y[t-25], y[t-26], y[t-27]
+    for t_idx in range(27, n_dates):
+        lags = y[t_idx-24], y[t_idx-25], y[t_idx-26], y[t_idx-27]
         if any(np.isnan(lags)):
             continue
-        cf[t] = alpha + b1*lags[0] + b2*lags[1] + b3*lags[2] + b4*lags[3]
-
-    # Post-COVID: recursive; use actual y for lags ≤ Feb 2020, cf otherwise
-    for t in range(feb2020_idx + 1, n_dates):
-        lag_vals = []
-        for lag in (24, 25, 26, 27):
-            idx = t - lag
-            if idx < 0:
-                lag_vals.append(np.nan)
-            elif idx <= feb2020_idx:
-                lag_vals.append(y[idx])    # actual pre-COVID value
-            else:
-                lag_vals.append(cf[idx])   # already-computed counterfactual
-        if any(np.isnan(lag_vals)):
-            continue
-        cf[t] = alpha + b1*lag_vals[0] + b2*lag_vals[1] + b3*lag_vals[2] + b4*lag_vals[3]
+        cf[t_idx] = alpha + b1*lags[0] + b2*lags[1] + b3*lags[2] + b4*lags[3]
 
     resid = y - cf
     return cf, resid

@@ -160,7 +160,7 @@ Plotly.newPlot('chart-trend-level-actual', [
   {x: DATES, y: d.trend_level_cf,
    type: 'scatter', mode: 'lines',
    line: {color: '#f97316', width: 1.5, dash: 'dash'},
-   name: 'Pre-COVID Quadratic Trend (Jan 2010–Feb 2020)'},
+   name: 'Pre-COVID Polynomial Trend (Jan 2010–Feb 2020 fit)'},
 ], {
   ...LAYOUT_BASE,
   yaxis: {...LAYOUT_BASE.yaxis, title: {text: 'Employment (thousands)', font: {size: 11}}},
@@ -178,7 +178,7 @@ Plotly.newPlot('chart-trend-level-resid', [
 ], {
   ...LAYOUT_BASE,
   yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f',
-          title: {text: 'Deviation from Counterfactual Log Level (Quadratic Trend)', font: {size: 11}}},
+          title: {text: 'Deviation from Counterfactual Log Level (Polynomial Trend)', font: {size: 11}}},
   shapes: [covidShape()],
 }, CONFIG);
 
@@ -210,7 +210,7 @@ Plotly.newPlot('chart-trend-share-resid', [
 ], {
   ...LAYOUT_BASE,
   yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f',
-          title: {text: 'Deviation from Counterfactual Log Share (Quadratic Trend)', font: {size: 11}}},
+          title: {text: 'Deviation from Counterfactual Log Share (Polynomial Trend)', font: {size: 11}}},
   shapes: [covidShape()],
 }, CONFIG);
 
