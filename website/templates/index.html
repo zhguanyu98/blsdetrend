@@ -3,20 +3,34 @@
 {% block title %}BLS B-1a Employment Table{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center mb-2 gap-3">
+<div class="d-flex align-items-center mb-2 gap-3 flex-wrap">
   <h5 class="mb-0">Table B-1a: Employees on Nonfarm Payrolls by Industry Sector</h5>
   <span class="badge bg-secondary">{{ rows|length }} series</span>
 </div>
+
+<!-- Denominator selector -->
+<div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+  <label class="fw-semibold small mb-0" for="denom-select">Employment share denominator:</label>
+  <select id="denom-select" class="form-select form-select-sm" style="width:auto">
+    <option value="1">Level 4 parent (default)</option>
+    <option value="2">Level 3 parent</option>
+    <option value="3">Level 2 parent</option>
+    <option value="4">Goods/Service-providing total</option>
+    <option value="5">Total private / Total government</option>
+  </select>
+</div>
+<p id="denom-desc" class="text-muted small mb-2"></p>
+
 <p class="text-muted small mb-2">
-  Seasonally adjusted, thousands of employees. All trend methods fit on Jan 2010–Feb 2020 and extrapolated forward.
+  Seasonally adjusted, thousands of employees. Trend methods fit Jan 2010–Feb 2020, extrapolated forward.
   <em>pct=XX</em> = percentile of current share in full historical series (2000–present).
 </p>
 
 <!-- Footnotes -->
 <div class="mb-3 small text-muted" id="footnotes">
-  <div id="fn-ll-level"><sup>1</sup> <strong>Dev. Log Level (Linear Trend):</strong> Log employment minus a linear time trend estimated on Jan 2010–Feb 2020. Positive = above trend.</div>
-  <div id="fn-ls-share"><sup>2</sup> <strong>Dev. Log Share (Linear Trend):</strong> Log employment share minus a linear time trend estimated on Jan 2010–Feb 2020. Positive = above trend.</div>
-  <div id="fn-rs-share"><sup>3</sup> <strong>Dev. Raw Share (Quad./Lin. Trend):</strong> (Actual share − trend) / trend, where trend is a quadratic fit (Jan 2010–Feb 2020); falls back to linear if the quadratic term is insignificant (p&gt;0.05). Positive = above trend.</div>
+  <div id="fn-ll-level"><sup>1</sup> <strong>Dev. Log Level:</strong> log(emp) minus a linear time trend (Jan 2010–Feb 2020). Unaffected by denominator choice.</div>
+  <div id="fn-ls-share"><sup>2</sup> <strong>Dev. Log Share:</strong> log(share) minus a linear time trend (Jan 2010–Feb 2020). Changes with denominator.</div>
+  <div id="fn-rs-share"><sup>3</sup> <strong>Dev. Raw Share:</strong> (actual−trend)/trend where trend is quadratic (falls back to linear if p&gt;0.05). Changes with denominator.</div>
 </div>
 
 <div class="table-responsive bls-table-wrapper">
@@ -27,66 +41,130 @@
         <th>{{ last_label }}<br><small class="text-muted">(000s)</small></th>
         <th>{{ prev_label }}<br><small class="text-muted">(000s)</small></th>
         <th>Share<br><small class="text-muted">of denom</small></th>
-        <th>
-          Dev. Log Level<br>(Linear Trend)
-          <a href="#fn-ll-level" class="text-muted ms-1" style="font-size:0.7em"><sup>1</sup></a>
-        </th>
-        <th>
-          Dev. Log Share<br>(Linear Trend)
-          <a href="#fn-ls-share" class="text-muted ms-1" style="font-size:0.7em"><sup>2</sup></a>
-        </th>
-        <th>
-          Dev. Raw Share<br>(Quad./Lin. Trend)
-          <a href="#fn-rs-share" class="text-muted ms-1" style="font-size:0.7em"><sup>3</sup></a>
-        </th>
-        <th>Denominator</th>
+        <th>Dev. Log Level<br><small class="text-muted">(linear trend)</small>
+          <a href="#fn-ll-level" class="text-muted ms-1" style="font-size:0.7em"><sup>1</sup></a></th>
+        <th>Dev. Log Share<br><small class="text-muted">(linear trend)</small>
+          <a href="#fn-ls-share" class="text-muted ms-1" style="font-size:0.7em"><sup>2</sup></a></th>
+        <th>Dev. Raw Share<br><small class="text-muted">(quad./lin. trend)</small>
+          <a href="#fn-rs-share" class="text-muted ms-1" style="font-size:0.7em"><sup>3</sup></a></th>
+        <th id="th-denom">Denominator</th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
       {% set lvl = row.display_level %}
-      {% set indent_px = lvl * 16 %}
-      <tr class="lvl-{{ lvl }}{% if lvl == 0 %} table-dark fw-bold{% elif lvl == 1 %} table-secondary fw-semibold{% elif lvl == 2 %} fw-semibold{% endif %}">
-        <td class="industry-name" style="padding-left: {{ indent_px + 8 }}px">
-          <a href="/{{ row.series_id }}" class="text-decoration-none industry-link {% if lvl <= 1 %}text-reset{% endif %}">
+      <tr class="lvl-{{ lvl }}{% if lvl == 0 %} table-dark fw-bold{% elif lvl == 1 %} table-secondary fw-semibold{% elif lvl == 2 %} fw-semibold{% endif %}"
+          data-sid="{{ row.series_id }}">
+        <td class="industry-name" style="padding-left: {{ lvl * 16 + 8 }}px">
+          <a href="/{{ row.series_id }}" class="text-decoration-none industry-link {% if lvl <= 1 %}text-reset{% endif %} js-industry-link">
             {{ row.industry_name }}
           </a>
         </td>
-
-        <td class="text-end {% if row.emp_recent is none %}text-muted{% endif %}">
-          {% if row.emp_recent is not none %}{{ "{:,.1f}".format(row.emp_recent) }}{% else %}—{% endif %}
-        </td>
-
-        <td class="text-end {% if row.emp_prev is none %}text-muted{% endif %}">
-          {% if row.emp_prev is not none %}{{ "{:,.1f}".format(row.emp_prev) }}{% else %}—{% endif %}
-        </td>
-
         <td class="text-end">
-          {% if row.share is not none %}
-            {{ "%.4f"|format(row.share) }}
-            {% if row.share_pct is not none %}<br><small class="text-muted">pct={{ row.share_pct }}</small>{% endif %}
+          {% if row.emp_recent is not none %}{{ "{:,.1f}".format(row.emp_recent) }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <td class="text-end">
+          {% if row.emp_prev is not none %}{{ "{:,.1f}".format(row.emp_prev) }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <!-- denom-reactive cells -->
+        <td class="text-end td-share"></td>
+        <td class="text-end td-dev-ll">
+          {% if row.dev_log_level is not none %}
+            <span class="{{ 'text-success' if row.dev_log_level > 0 else 'text-danger' if row.dev_log_level < 0 else '' }}">
+              {{ "%.3f"|format(row.dev_log_level) }}
+            </span>
           {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
-
-        <td class="text-end {% if row.dev_log_level is not none %}{{ 'text-success' if row.dev_log_level > 0 else 'text-danger' if row.dev_log_level < 0 else '' }}{% endif %}">
-          {% if row.dev_log_level is not none %}{{ "%.3f"|format(row.dev_log_level) }}
-          {% else %}<span class="text-muted">—</span>{% endif %}
-        </td>
-
-        <td class="text-end {% if row.dev_log_share is not none %}{{ 'text-success' if row.dev_log_share > 0 else 'text-danger' if row.dev_log_share < 0 else '' }}{% endif %}">
-          {% if row.dev_log_share is not none %}{{ "%.3f"|format(row.dev_log_share) }}
-          {% else %}<span class="text-muted">—</span>{% endif %}
-        </td>
-
-        <td class="text-end {% if row.dev_raw_share_pct is not none %}{{ 'text-success' if row.dev_raw_share_pct > 0 else 'text-danger' if row.dev_raw_share_pct < 0 else '' }}{% endif %}">
-          {% if row.dev_raw_share_pct is not none %}{{ "%.3f"|format(row.dev_raw_share_pct) }}
-          {% else %}<span class="text-muted">—</span>{% endif %}
-        </td>
-
-        <td class="small text-muted">{{ row.denom_name }}</td>
+        <td class="text-end td-dev-ls"></td>
+        <td class="text-end td-dev-rs"></td>
+        <td class="small text-muted td-denom-name"></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Embed all rows' options data ───────────────────────────────────────────
+const ROW_OPTS = {};
+{% for row in rows %}
+ROW_OPTS[{{ row.series_id | tojson }}] = {{ row.opts | tojson }};
+{% endfor %}
+
+const OPT_DESCS = {
+  "1": "Share of the closest display-level-4 parent industry (e.g., Roofing ÷ Specialty trade contractors).",
+  "2": "Share of the closest display-level-3 parent industry.",
+  "3": "Share of the closest display-level-2 parent industry (major sector, e.g., ÷ Construction).",
+  "4": "Share of Goods-producing total (for goods industries) or Service-providing total (for service industries).",
+  "5": "Share of Total private employment (for private industries) or Total government (for government).",
+};
+
+// ── Read/write URL param ───────────────────────────────────────────────────
+function getSelectedOpt() {
+  const p = new URLSearchParams(window.location.search).get("denom");
+  const n = parseInt(p);
+  return (n >= 1 && n <= 5) ? String(n) : "1";
+}
+function setUrlOpt(opt) {
+  const url = new URL(window.location);
+  url.searchParams.set("denom", opt);
+  history.pushState({}, "", url);
+}
+
+// ── Render helpers ─────────────────────────────────────────────────────────
+function fmtVal(v, dp) {
+  if (v === null || v === undefined) return '<span class="text-muted">—</span>';
+  const cls = v > 0 ? "text-success" : v < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${v.toFixed(dp)}</span>`;
+}
+
+function applyOpt(opt) {
+  document.getElementById("denom-select").value = opt;
+  document.getElementById("denom-desc").textContent = OPT_DESCS[opt] || "";
+
+  document.querySelectorAll("tr[data-sid]").forEach(tr => {
+    const sid  = tr.dataset.sid;
+    const o    = (ROW_OPTS[sid] || {})[opt] || {};
+
+    // Share + percentile
+    const tdShare = tr.querySelector(".td-share");
+    if (tdShare) {
+      let html = o.share != null ? o.share.toFixed(4) : "—";
+      if (o.share_pct != null) html += `<br><small class="text-muted">pct=${o.share_pct}</small>`;
+      tdShare.innerHTML = html;
+    }
+
+    // Dev log share
+    const tdLs = tr.querySelector(".td-dev-ls");
+    if (tdLs) tdLs.innerHTML = fmtVal(o.dev_log_share, 3);
+
+    // Dev raw share
+    const tdRs = tr.querySelector(".td-dev-rs");
+    if (tdRs) tdRs.innerHTML = fmtVal(o.dev_raw_share_pct, 3);
+
+    // Denominator name
+    const tdDn = tr.querySelector(".td-denom-name");
+    if (tdDn) tdDn.textContent = o.denom_name || "";
+
+    // Update industry link to carry denom param
+    const link = tr.querySelector(".js-industry-link");
+    if (link) {
+      const base = link.href.split("?")[0];
+      link.href = opt === "1" ? base : `${base}?denom=${opt}`;
+    }
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+const initialOpt = getSelectedOpt();
+applyOpt(initialOpt);
+
+document.getElementById("denom-select").addEventListener("change", function() {
+  const opt = this.value;
+  setUrlOpt(opt);
+  applyOpt(opt);
+});
+</script>
 {% endblock %}

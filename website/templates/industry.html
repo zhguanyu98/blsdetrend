@@ -8,30 +8,39 @@
 
 {% block content %}
 <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
-  <a href="/" class="btn btn-sm btn-outline-secondary">← Back to Table</a>
+  <a href="/" id="back-link" class="btn btn-sm btn-outline-secondary">← Back to Table</a>
   <h5 class="mb-0">{{ series_data.industry_name }}</h5>
   <code class="text-muted small">{{ series_data.series_id }}</code>
 </div>
-<p class="text-muted small mb-3">
-  Share of: <strong>{{ series_data.denom_name }}</strong>
-  &nbsp;|&nbsp; Denominator series: <code>{{ series_data.parent_series_id }}</code>
-</p>
 
-<div class="mb-4">
-  <a href="/download/{{ series_data.series_id }}" class="btn btn-sm btn-outline-primary">⬇ Download CSV</a>
+<!-- Denominator selector -->
+<div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
+  <label class="fw-semibold small mb-0" for="denom-select">Employment share denominator:</label>
+  <select id="denom-select" class="form-select form-select-sm" style="width:auto">
+    <option value="1">Level 4 parent (default)</option>
+    <option value="2">Level 3 parent</option>
+    <option value="3">Level 2 parent</option>
+    <option value="4">Goods/Service-providing total</option>
+    <option value="5">Total private / Total government</option>
+  </select>
+</div>
+<p id="denom-info" class="text-muted small mb-3"></p>
+
+<div class="mb-3">
+  <a href="/download/{{ series_data.series_id }}" class="btn btn-sm btn-outline-primary">⬇ Download CSV (all 5 options)</a>
 </div>
 
 <p class="text-muted small mb-3">
   All trends estimated on <strong>Jan 2010–Feb 2020</strong> and extrapolated forward.
-  Dotted vertical line marks March 2020.
+  Level charts (rows 1–2) are unaffected by denominator choice.
 </p>
 
-<!-- ── Row 1: Log-linear Level ──────────────────────────────────────────────── -->
+<!-- ── Row 1: Log-linear Level (option-independent) ─────────────────────── -->
 <h6 class="fw-semibold mb-2 border-bottom pb-1">Employment Level — Log-Linear Trend</h6>
 <div class="row g-3 mb-4">
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Actual vs. Linear Trend (log scale fit)</div>
+      <div class="card-header small fw-semibold">Actual vs. Linear Trend</div>
       <div class="card-body p-2"><div id="chart-ll-actual" style="height:300px"></div></div>
     </div>
   </div>
@@ -43,12 +52,12 @@
   </div>
 </div>
 
-<!-- ── Row 2: Log-linear Share ──────────────────────────────────────────────── -->
-<h6 class="fw-semibold mb-2 border-bottom pb-1">Employment Share — Log-Linear Trend</h6>
+<!-- ── Row 2: Log-linear Share (option-dependent) ───────────────────────── -->
+<h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-ls">Employment Share — Log-Linear Trend</h6>
 <div class="row g-3 mb-4">
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Actual vs. Linear Trend (log scale fit)</div>
+      <div class="card-header small fw-semibold" id="hdr-ls-actual">Actual vs. Linear Trend</div>
       <div class="card-body p-2"><div id="chart-ls-actual" style="height:300px"></div></div>
     </div>
   </div>
@@ -60,12 +69,12 @@
   </div>
 </div>
 
-<!-- ── Row 3: Raw-share Quadratic/Linear Trend ──────────────────────────────── -->
-<h6 class="fw-semibold mb-2 border-bottom pb-1">Employment Share — Raw Quadratic/Linear Trend</h6>
+<!-- ── Row 3: Raw-share Quad/Linear (option-dependent) ──────────────────── -->
+<h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-rs">Employment Share — Raw Quadratic/Linear Trend</h6>
 <div class="row g-3">
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Actual vs. Quadratic/Linear Trend (raw share)</div>
+      <div class="card-header small fw-semibold" id="hdr-rs-actual">Actual vs. Quadratic/Linear Trend</div>
       <div class="card-body p-2"><div id="chart-rs-actual" style="height:300px"></div></div>
     </div>
   </div>
@@ -80,7 +89,7 @@
 
 {% block scripts %}
 <script>
-const d = {{ series_json | safe }};
+const d      = {{ series_json | safe }};
 const DATES  = d.dates;
 const M2020  = d.march2020;
 const CONFIG = {responsive: true, displayModeBar: false};
@@ -106,78 +115,106 @@ function zeroTrace() {
           name:'Zero', showlegend:false, hoverinfo:'skip'};
 }
 
-// ── Chart 1: Level actual vs. linear trend ─────────────────────────────────
+// ── Charts 1 & 2: level (rendered once, option-independent) ───────────────
 Plotly.newPlot('chart-ll-actual', [
   {x:DATES, y:d.emp_level,      type:'scatter', mode:'lines',
    line:{color:'#2563eb',width:1.5}, name:'Actual Employment'},
   {x:DATES, y:d.trend_ll_level, type:'scatter', mode:'lines',
    line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Linear Trend'},
-], {
-  ...BASE_LAYOUT,
-  yaxis:{...BASE_LAYOUT.yaxis, title:{text:'Employment (thousands)',font:{size:11}}},
-  shapes:[covidShape()],
-}, CONFIG);
+], {...BASE_LAYOUT,
+    yaxis:{...BASE_LAYOUT.yaxis, title:{text:'Employment (thousands)',font:{size:11}}},
+    shapes:[covidShape()]}, CONFIG);
 
-// ── Chart 2: Level log residual ────────────────────────────────────────────
 Plotly.newPlot('chart-ll-resid', [
   {x:DATES, y:d.resid_ll_level, type:'scatter', mode:'lines',
    line:{color:'#2563eb',width:1.5}, name:'Log deviation', connectgaps:false},
   zeroTrace(),
-], {
-  ...BASE_LAYOUT,
-  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
-         title:{text:'Log deviation from linear trend',font:{size:11}}},
-  shapes:[covidShape()],
-}, CONFIG);
+], {...BASE_LAYOUT,
+    yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
+           title:{text:'Log deviation from linear trend',font:{size:11}}},
+    shapes:[covidShape()]}, CONFIG);
 
-// ── Chart 3: Share (log-linear) actual vs. trend ───────────────────────────
-Plotly.newPlot('chart-ls-actual', [
-  {x:DATES, y:d.emp_share_pct,      type:'scatter', mode:'lines',
-   line:{color:'#2563eb',width:1.5}, name:'Actual Share'},
-  {x:DATES, y:d.trend_ls_share_pct, type:'scatter', mode:'lines',
-   line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Linear Trend'},
-], {
-  ...BASE_LAYOUT,
-  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.3f',
-         title:{text:'Employment Share (%)',font:{size:11}}},
-  shapes:[covidShape()],
-}, CONFIG);
+// ── Charts 3–6: share (re-rendered on option change) ──────────────────────
+function renderShareCharts(opt) {
+  const o = d.options[String(opt)];
+  if (!o) return;
 
-// ── Chart 4: Share log residual ────────────────────────────────────────────
-Plotly.newPlot('chart-ls-resid', [
-  {x:DATES, y:d.resid_ls_share, type:'scatter', mode:'lines',
-   line:{color:'#2563eb',width:1.5}, name:'Log deviation', connectgaps:false},
-  zeroTrace(),
-], {
-  ...BASE_LAYOUT,
-  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
-         title:{text:'Log deviation from linear trend',font:{size:11}}},
-  shapes:[covidShape()],
-}, CONFIG);
+  const denomLabel = `÷ ${o.denom_name}`;
+  document.getElementById("denom-info").textContent =
+    `Share denominator: ${o.denom_name} (${o.denom_id || ""})`;
+  document.getElementById("hdr-ls-actual").textContent =
+    `Actual vs. Linear Trend  (${denomLabel})`;
+  document.getElementById("hdr-rs-actual").textContent =
+    `Actual vs. Quadratic/Linear Trend  (${denomLabel})`;
 
-// ── Chart 5: Raw share actual vs. quad/linear trend ────────────────────────
-Plotly.newPlot('chart-rs-actual', [
-  {x:DATES, y:d.emp_share_pct,      type:'scatter', mode:'lines',
-   line:{color:'#2563eb',width:1.5}, name:'Actual Share'},
-  {x:DATES, y:d.trend_rs_share_pct, type:'scatter', mode:'lines',
-   line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Quad./Lin. Trend'},
-], {
-  ...BASE_LAYOUT,
-  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.3f',
-         title:{text:'Employment Share (%)',font:{size:11}}},
-  shapes:[covidShape()],
-}, CONFIG);
+  Plotly.react('chart-ls-actual', [
+    {x:DATES, y:o.emp_share_pct,      type:'scatter', mode:'lines',
+     line:{color:'#2563eb',width:1.5}, name:'Actual Share'},
+    {x:DATES, y:o.trend_ls_share_pct, type:'scatter', mode:'lines',
+     line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Linear Trend'},
+  ], {...BASE_LAYOUT,
+      yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.3f',
+             title:{text:`Employment Share (%)  ${denomLabel}`,font:{size:11}}},
+      shapes:[covidShape()]}, CONFIG);
 
-// ── Chart 6: Raw share % deviation ────────────────────────────────────────
-Plotly.newPlot('chart-rs-resid', [
-  {x:DATES, y:d.resid_rs_pct, type:'scatter', mode:'lines',
-   line:{color:'#2563eb',width:1.5}, name:'% deviation', connectgaps:false},
-  zeroTrace(),
-], {
-  ...BASE_LAYOUT,
-  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
-         title:{text:'(Actual − Trend) / Trend',font:{size:11}}},
-  shapes:[covidShape()],
-}, CONFIG);
+  Plotly.react('chart-ls-resid', [
+    {x:DATES, y:o.resid_ls_share, type:'scatter', mode:'lines',
+     line:{color:'#2563eb',width:1.5}, name:'Log deviation', connectgaps:false},
+    zeroTrace(),
+  ], {...BASE_LAYOUT,
+      yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
+             title:{text:'Log deviation from linear trend',font:{size:11}}},
+      shapes:[covidShape()]}, CONFIG);
+
+  Plotly.react('chart-rs-actual', [
+    {x:DATES, y:o.emp_share_pct,      type:'scatter', mode:'lines',
+     line:{color:'#2563eb',width:1.5}, name:'Actual Share'},
+    {x:DATES, y:o.trend_rs_share_pct, type:'scatter', mode:'lines',
+     line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Quad./Lin. Trend'},
+  ], {...BASE_LAYOUT,
+      yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.3f',
+             title:{text:`Employment Share (%)  ${denomLabel}`,font:{size:11}}},
+      shapes:[covidShape()]}, CONFIG);
+
+  Plotly.react('chart-rs-resid', [
+    {x:DATES, y:o.resid_rs_pct, type:'scatter', mode:'lines',
+     line:{color:'#2563eb',width:1.5}, name:'% deviation', connectgaps:false},
+    zeroTrace(),
+  ], {...BASE_LAYOUT,
+      yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
+             title:{text:'(Actual − Trend) / Trend',font:{size:11}}},
+      shapes:[covidShape()]}, CONFIG);
+}
+
+// ── URL param helpers ──────────────────────────────────────────────────────
+function getSelectedOpt() {
+  const p = new URLSearchParams(window.location.search).get("denom");
+  const n = parseInt(p);
+  return (n >= 1 && n <= 5) ? n : 1;
+}
+function setUrlOpt(opt) {
+  const url = new URL(window.location);
+  opt === 1 ? url.searchParams.delete("denom") : url.searchParams.set("denom", opt);
+  history.pushState({}, "", url);
+}
+
+// Update "Back to Table" link to preserve denom selection
+function updateBackLink(opt) {
+  const link = document.getElementById("back-link");
+  link.href = opt === 1 ? "/" : `/?denom=${opt}`;
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+let currentOpt = getSelectedOpt();
+document.getElementById("denom-select").value = String(currentOpt);
+renderShareCharts(currentOpt);
+updateBackLink(currentOpt);
+
+document.getElementById("denom-select").addEventListener("change", function() {
+  currentOpt = parseInt(this.value);
+  setUrlOpt(currentOpt);
+  updateBackLink(currentOpt);
+  renderShareCharts(currentOpt);
+});
 </script>
 {% endblock %}
