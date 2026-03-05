@@ -8,90 +8,93 @@ This repository processes BLS (Bureau of Labor Statistics) Table B-1a data — 8
 
 ## Key Commands
 
-### Rebuild denominator mapping (only needed if `b1a_mapping_with_parent.csv` changes)
+### Full pipeline (run in order when source data changes)
 ```bash
-cd "/Users/guanyuzhou/Penn Dropbox/Guanyu Zhou/MLP/research/BLS"
-python3 build_mapping.py
-```
-Reads `b1a_mapping_with_parent.csv`, writes `b1a_mapping_with_denominators.csv`.
+# 1. Pull latest BLS data → b1a_wide_seriesid.csv
+jupyter nbconvert --to notebook --execute pull_data.ipynb
 
-### Generate website data (run after any pipeline or mapping update)
-```bash
-cd "/Users/guanyuzhou/Penn Dropbox/Guanyu Zhou/MLP/research/BLS/website"
-python3 generate_data.py
+# 2. Rebuild denominator mapping (only if b1a_mapping_with_parent.csv changes)
+python3 build_mapping.py
+
+# 3. Regenerate website data files
+cd website && python3 generate_data.py
 ```
-Reads source CSVs from `../` and writes ~1,685 files into `website/data/`. Takes ~1–2 min.
 
 ### Run the website locally
 ```bash
-cd "/Users/guanyuzhou/Penn Dropbox/Guanyu Zhou/MLP/research/BLS/website"
-flask run
-# → http://127.0.0.1:5000
+cd website
+flask run   # → http://127.0.0.1:5000
 ```
 
-### Deploy (after data or code changes)
+### Deploy
 ```bash
 git add website/data/ website/ build_mapping.py b1a_mapping_with_denominators.csv
 git commit -m "..."
 git push origin main    # Render.com auto-redeploys
 ```
 
-## Architecture
+## Source Files (root directory)
 
-### Data pipeline
+| File | Content | Used by website? |
+|---|---|---|
+| `b1a_mapping_with_parent.csv` | 842 rows: series_id, industry_name, display_level (0–7), row_order, supersector_code, parent_series_id | via `b1a_mapping_with_denominators.csv` |
+| `b1a_mapping_with_denominators.csv` | Above + 10 columns: `denominator_opt{1-5}` and `denominator_opt{1-5}_name` | yes — primary mapping |
+| `b1a_wide_seriesid.csv` | Raw employment (thousands), ~313 months × 842 series, date-indexed | yes |
+| `b1a_employment_shares.csv` | Pre-computed shares (old pipeline) | no — shares now computed inline in `generate_data.py` |
+| `detrended/` | Legacy detrended CSVs (MA60, Hamilton, poly3) | no — detrending now inline in `generate_data.py` |
 
-Source CSVs live in the root `BLS/` directory:
+## Notebooks
 
-| File | Content |
+| Notebook | Purpose |
 |---|---|
-| `b1a_mapping_with_parent.csv` | 842 rows: series_id, industry_name, display_level (0–7), row_order, supersector_code, parent_series_id |
-| `b1a_mapping_with_denominators.csv` | Above + 10 columns: `denominator_opt{1-5}` and `denominator_opt{1-5}_name` |
-| `b1a_wide_seriesid.csv` | Raw employment (thousands), ~313 months × 842 series, date-indexed |
+| `pull_data.ipynb` | Calls BLS API → writes `b1a_wide_seriesid.csv`. Requires a BLS API key. |
+| `create_mapping.ipynb` | Builds `b1a_mapping_with_parent.csv` from BLS dict files in `dict/` |
+| `compute_share.ipynb` | Legacy — pre-computed shares before website did it inline |
+| `detrend_share.ipynb` | Legacy — old detrending methods (MA60, Hamilton, poly3) |
+| `plot.ipynb` | Ad-hoc analysis and matplotlib charts |
 
-**`build_mapping.py`** — computes the denominator series_id for each of 5 user-selectable options and writes `b1a_mapping_with_denominators.csv`. Key logic:
-- Goods/service classification is by `supersector_code`, NOT by walking the parent chain (parent_series_id fields mostly point directly to Total private, skipping intermediate levels)
-- `find_ancestor_at_level(sid, target_lvl)` scans **backwards through row_order** from the current row, returning the first row at `target_lvl`, stopping if it encounters a row with level < target_lvl (out of scope)
-- Special cases (Total nonfarm, Total private, Goods/Service-providing, Government) are handled before option-specific logic
+## build_mapping.py
+
+Reads `b1a_mapping_with_parent.csv`, computes the denominator series_id for each of 5 options, writes `b1a_mapping_with_denominators.csv`.
+
+**Critical**: `parent_series_id` fields mostly point directly to Total private (level 1), skipping intermediate levels. `find_ancestor_at_level` therefore scans **backwards through row_order** rather than walking the parent chain. It returns the first preceding row at `target_lvl`, stopping early if it hits a row with level < target_lvl (out of scope).
 
 Denominator options:
 - **Opt 1** (default): Goods/Service if level ≤ 4; else nearest level-4 ancestor (fallback: level-3, then Goods/Service)
 - **Opt 2**: Goods/Service if level ≤ 3; else nearest level-3 ancestor
 - **Opt 3**: Goods/Service if level ≤ 2; else nearest level-2 ancestor
 - **Opt 4**: Always Goods/Service by supersector code
-- **Opt 5**: Total private (private industries) or Total government (govt industries)
+- **Opt 5**: Total private (private) or Total government (govt)
 
-### Website (`website/`)
+Special cases applied before option logic: Total nonfarm → itself; Total private → Total nonfarm; Goods/Service-providing → Total private; Govt level 2 → Total nonfarm; Govt level > 2 → Total government.
 
-**`generate_data.py`** — pre-computes everything; no numpy/pandas at request time:
-- Fit window: **Jan 2010 – Feb 2020** for all trend estimation; values NaN before Jan 2010
-- `fit_log_linear(log_vals)`: always-linear OLS on log values → returns (trend_log, resid_log)
-- `fit_raw_quadratic(raw_vals)`: quadratic OLS with t-test on t² coefficient (p > 0.05 → refit as linear) → returns (trend_raw, resid_pct) where resid_pct = (actual − pred) / pred
-- Outputs `data/table_data.json` (842 rows, all 5 denom options each) and `data/{series_id}.json` + `data/{series_id}_export.csv` per industry
+## Website (`website/`)
 
-**`app.py`** — Flask, 3 routes:
-- `/` — loads `table_data.json`, renders main table
-- `/<series_id>` — loads `{series_id}.json`, renders 6-chart detail page
-- `/download/<series_id>` — serves `{series_id}_export.csv`
+See `website/CLAUDE.md` for details. Summary:
 
-**Industry JSON structure** (key fields):
+**`generate_data.py`** — all computation, no runtime dependencies:
+- Fit window: **Jan 2010 – Feb 2020**; values NaN before Jan 2010
+- `fit_log_linear`: always-linear OLS on log values → (trend_log, resid_log)
+- `fit_raw_linear`: linear OLS on raw share → (trend_raw, resid_pct) where resid_pct = (actual − pred) / pred
+- Outputs `data/table_data.json`, `data/{series_id}.json`, `data/{series_id}_export.csv`
+
+**Industry JSON structure:**
 ```
-dates, march2020, emp_level, trend_ll_level, resid_ll_level   ← option-independent
-options: {
-  "1": { denom_name, denom_id, emp_share_pct, trend_ls_share_pct,
-         resid_ls_share, trend_rs_share_pct, resid_rs_pct },
-  "2": ..., "3": ..., "4": ..., "5": ...
+emp_level, trend_ll_level, resid_ll_level        ← option-independent (log-linear level)
+options["1"…"5"]: {
+  emp_share_pct, trend_ls_share_pct, resid_ls_share,   ← log-linear share
+  trend_rs_share_pct, resid_rs_pct,                    ← raw-linear share
+  denom_name, denom_id
 }
 ```
 
-**Charts in `industry.html`** (6 total, 3 rows × 2 columns):
-- Row 1 (option-independent): Log-linear level — actual vs. trend; log deviation from trend
-- Row 2 (option-dependent): Log-linear share — actual vs. trend; log deviation from trend
-- Row 3 (option-dependent): Raw share quadratic/linear — actual vs. trend; % deviation = (actual−trend)/trend
+**6 charts per industry page** (3 rows × 2 cols):
+- Row 1: Log-linear level — actual vs. trend; log deviation
+- Row 2: Log-linear share — actual vs. trend; log deviation  *(option-dependent)*
+- Row 3: Raw-linear share — actual vs. trend; % deviation    *(option-dependent)*
 
-The denominator dropdown (`?denom=1`–`5`) is persisted in the URL via `history.pushState`. Charts 1–2 never re-render; Charts 3–6 use `Plotly.react` on option change. Industry links on the main table carry the `?denom=N` param.
-
-### Deployment
+## Deployment
 - Hosted on Render.com at `https://blsdetrend.onrender.com`
-- GitHub repo: `https://github.com/zhguanyu98/blsdetrend`
-- Config: `website/render.yaml` + `website/Procfile` (start: `gunicorn app:app --bind 0.0.0.0:$PORT`)
-- Free tier spins down after 15 min idle; first request takes ~30–60s to wake
+- GitHub: `https://github.com/zhguanyu98/blsdetrend`
+- Start command (in `Procfile`): `gunicorn app:app --bind 0.0.0.0:$PORT`
+- Free tier sleeps after 15 min idle; first request takes ~30–60s
