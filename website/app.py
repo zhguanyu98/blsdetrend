@@ -41,7 +41,7 @@ def index():
     )
 
 
-@app.route("/<series_id>")
+@app.route("/<series_id>/", strict_slashes=False)
 def industry(series_id: str):
     # Basic validation: BLS series IDs are alphanumeric
     if not series_id.replace("CES", "").isdigit() and not series_id.startswith("CES"):
@@ -52,6 +52,17 @@ def industry(series_id: str):
         series_data=series_data,
         series_json=json.dumps(series_data),
     )
+
+
+@app.route("/data/<filename>")
+def serve_data(filename: str):
+    """Serve pre-computed data files (JSON + CSV) directly."""
+    if "." not in filename or filename.rsplit(".", 1)[1] not in ("json", "csv"):
+        abort(404)
+    path = DATA_DIR / filename
+    if not path.exists():
+        abort(404)
+    return send_file(path)
 
 
 @app.route("/download/<series_id>")

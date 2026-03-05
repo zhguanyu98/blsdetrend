@@ -59,7 +59,7 @@
       <tr class="lvl-{{ lvl }}{% if lvl == 0 %} table-dark fw-bold{% elif lvl == 1 %} table-secondary fw-semibold{% elif lvl == 2 %} fw-semibold{% endif %}"
           data-sid="{{ row.series_id }}">
         <td class="industry-name" style="padding-left: {{ lvl * 16 + 8 }}px">
-          <a href="/{{ row.series_id }}" class="text-decoration-none industry-link {% if lvl <= 1 %}text-reset{% endif %} js-industry-link">
+          <a href="{{ url_for('industry', series_id=row.series_id) }}" class="text-decoration-none industry-link {% if lvl <= 1 %}text-reset{% endif %} js-industry-link">
             {{ row.industry_name }}
           </a>
         </td>

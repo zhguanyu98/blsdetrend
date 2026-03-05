@@ -8,7 +8,7 @@
 
 {% block content %}
 <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
-  <a href="/" id="back-link" class="btn btn-sm btn-outline-secondary">← Back to Table</a>
+  <a href="{{ url_for('index') }}" id="back-link" class="btn btn-sm btn-outline-secondary">← Back to Table</a>
   <h5 class="mb-0">{{ series_data.industry_name }}</h5>
   <code class="text-muted small">{{ series_data.series_id }}</code>
 </div>
@@ -27,7 +27,9 @@
 <p id="denom-info" class="text-muted small mb-3"></p>
 
 <div class="mb-3">
-  <a href="/download/{{ series_data.series_id }}" class="btn btn-sm btn-outline-primary">⬇ Download CSV (all 5 options)</a>
+  <a href="../data/{{ series_data.series_id }}_export.csv"
+     download="{{ series_data.series_id }}_export.csv"
+     class="btn btn-sm btn-outline-primary">⬇ Download CSV (all 5 options)</a>
 </div>
 
 <p class="text-muted small mb-3">
@@ -257,9 +259,11 @@ function setUrlOpt(opt) {
 }
 
 // Update "Back to Table" link to preserve denom selection
+// Use existing href as base so relative URLs work on both Render and GitHub Pages
 function updateBackLink(opt) {
   const link = document.getElementById("back-link");
-  link.href = opt === 1 ? "/" : `/?denom=${opt}`;
+  const base = link.href.split("?")[0];
+  link.href = opt === 1 ? base : `${base}?denom=${opt}`;
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
