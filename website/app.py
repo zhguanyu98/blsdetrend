@@ -12,6 +12,11 @@ app = Flask(__name__)
 
 DATA_DIR = Path(__file__).parent / "data"
 
+# Pre-load table data at startup so the first request (including health checks) is fast
+_table_data_path = DATA_DIR / "table_data.json"
+with open(_table_data_path) as _f:
+    _TABLE_DATA = json.load(_f)
+
 
 def load_json(filename: str) -> dict:
     path = DATA_DIR / filename
@@ -21,14 +26,18 @@ def load_json(filename: str) -> dict:
         return json.load(f)
 
 
+@app.route("/health")
+def health():
+    return "ok", 200
+
+
 @app.route("/")
 def index():
-    table_data = load_json("table_data.json")
     return render_template(
         "index.html",
-        rows=table_data["rows"],
-        last_label=table_data.get("last_label", ""),
-        prev_label=table_data.get("prev_label", ""),
+        rows=_TABLE_DATA["rows"],
+        last_label=_TABLE_DATA.get("last_label", ""),
+        prev_label=_TABLE_DATA.get("prev_label", ""),
     )
 
 
