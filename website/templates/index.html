@@ -8,16 +8,15 @@
   <span class="badge bg-secondary">{{ rows|length }} series</span>
 </div>
 <p class="text-muted small mb-2">
-  Seasonally adjusted, thousands of employees. Detrended columns show log deviations from pre-COVID counterfactual.
+  Seasonally adjusted, thousands of employees. All trend methods fit on Jan 2010–Feb 2020 and extrapolated forward.
   <em>pct=XX</em> = percentile of current share in full historical series (2000–present).
 </p>
 
 <!-- Footnotes -->
 <div class="mb-3 small text-muted" id="footnotes">
-  <div id="fn-trend-level"><sup>1</sup> <strong>Dev. Log Level (Quad. Trend):</strong> Log employment minus a quadratic time trend estimated on Jan 2010–Feb 2020 and extrapolated forward from Jan 2010. Positive = above trend.</div>
-  <div id="fn-trend-share"><sup>2</sup> <strong>Dev. Log Share (Quad. Trend):</strong> Log employment share minus a quadratic time trend estimated on Jan 2010–Feb 2020 and extrapolated forward from Jan 2010. Positive = above trend.</div>
-  <div id="fn-ham-level"><sup>3</sup> <strong>Dev. Log Level (Hamilton):</strong> Log employment minus the Hamilton (2018) filter prediction using actual 24–27 month lags, with coefficients estimated on Jan 2010–Feb 2020. Reported from Jan 2010 onwards. Positive = above implied path.</div>
-  <div id="fn-ham-share"><sup>4</sup> <strong>Dev. Log Share (Hamilton):</strong> Log employment share minus the Hamilton (2018) filter prediction using actual 24–27 month lags, with coefficients estimated on Jan 2010–Feb 2020. Reported from Jan 2010 onwards. Positive = above implied path.</div>
+  <div id="fn-ll-level"><sup>1</sup> <strong>Dev. Log Level (Linear Trend):</strong> Log employment minus a linear time trend estimated on Jan 2010–Feb 2020. Positive = above trend.</div>
+  <div id="fn-ls-share"><sup>2</sup> <strong>Dev. Log Share (Linear Trend):</strong> Log employment share minus a linear time trend estimated on Jan 2010–Feb 2020. Positive = above trend.</div>
+  <div id="fn-rs-share"><sup>3</sup> <strong>Dev. Raw Share (Quad./Lin. Trend):</strong> (Actual share − trend) / trend, where trend is a quadratic fit (Jan 2010–Feb 2020); falls back to linear if the quadratic term is insignificant (p&gt;0.05). Positive = above trend.</div>
 </div>
 
 <div class="table-responsive bls-table-wrapper">
@@ -29,20 +28,16 @@
         <th>{{ prev_label }}<br><small class="text-muted">(000s)</small></th>
         <th>Share<br><small class="text-muted">of denom</small></th>
         <th>
-          Dev. Log Level<br>(Quad. Trend)
-          <a href="#fn-trend-level" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 1"><sup>1</sup></a>
+          Dev. Log Level<br>(Linear Trend)
+          <a href="#fn-ll-level" class="text-muted ms-1" style="font-size:0.7em"><sup>1</sup></a>
         </th>
         <th>
-          Dev. Log Share<br>(Quad. Trend)
-          <a href="#fn-trend-share" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 2"><sup>2</sup></a>
+          Dev. Log Share<br>(Linear Trend)
+          <a href="#fn-ls-share" class="text-muted ms-1" style="font-size:0.7em"><sup>2</sup></a>
         </th>
         <th>
-          Dev. Log Level<br>(Hamilton)
-          <a href="#fn-ham-level" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 3"><sup>3</sup></a>
-        </th>
-        <th>
-          Dev. Log Share<br>(Hamilton)
-          <a href="#fn-ham-share" class="text-muted ms-1" style="font-size:0.7em" title="See footnote 4"><sup>4</sup></a>
+          Dev. Raw Share<br>(Quad./Lin. Trend)
+          <a href="#fn-rs-share" class="text-muted ms-1" style="font-size:0.7em"><sup>3</sup></a>
         </th>
         <th>Denominator</th>
       </tr>
@@ -52,80 +47,42 @@
       {% set lvl = row.display_level %}
       {% set indent_px = lvl * 16 %}
       <tr class="lvl-{{ lvl }}{% if lvl == 0 %} table-dark fw-bold{% elif lvl == 1 %} table-secondary fw-semibold{% elif lvl == 2 %} fw-semibold{% endif %}">
-        <!-- Industry name -->
         <td class="industry-name" style="padding-left: {{ indent_px + 8 }}px">
           <a href="/{{ row.series_id }}" class="text-decoration-none industry-link {% if lvl <= 1 %}text-reset{% endif %}">
             {{ row.industry_name }}
           </a>
         </td>
 
-        <!-- Recent employment -->
         <td class="text-end {% if row.emp_recent is none %}text-muted{% endif %}">
-          {% if row.emp_recent is not none %}
-            {{ "{:,.1f}".format(row.emp_recent) }}
-          {% else %}
-            —
-          {% endif %}
+          {% if row.emp_recent is not none %}{{ "{:,.1f}".format(row.emp_recent) }}{% else %}—{% endif %}
         </td>
 
-        <!-- Previous month employment -->
         <td class="text-end {% if row.emp_prev is none %}text-muted{% endif %}">
-          {% if row.emp_prev is not none %}
-            {{ "{:,.1f}".format(row.emp_prev) }}
-          {% else %}
-            —
-          {% endif %}
+          {% if row.emp_prev is not none %}{{ "{:,.1f}".format(row.emp_prev) }}{% else %}—{% endif %}
         </td>
 
-        <!-- Share + percentile -->
         <td class="text-end">
           {% if row.share is not none %}
             {{ "%.4f"|format(row.share) }}
-            {% if row.share_pct is not none %}
-            <br><small class="text-muted">pct={{ row.share_pct }}</small>
-            {% endif %}
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
+            {% if row.share_pct is not none %}<br><small class="text-muted">pct={{ row.share_pct }}</small>{% endif %}
+          {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
 
-        <!-- Dev. Log Level (Linear Trend) -->
-        <td class="text-end {% if row.dev_trend_level is not none %}{{ 'text-success' if row.dev_trend_level > 0 else 'text-danger' if row.dev_trend_level < 0 else '' }}{% endif %}">
-          {% if row.dev_trend_level is not none %}
-            {{ "%.3f"|format(row.dev_trend_level) }}
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
+        <td class="text-end {% if row.dev_log_level is not none %}{{ 'text-success' if row.dev_log_level > 0 else 'text-danger' if row.dev_log_level < 0 else '' }}{% endif %}">
+          {% if row.dev_log_level is not none %}{{ "%.3f"|format(row.dev_log_level) }}
+          {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
 
-        <!-- Dev. Log Share (Quad. Trend) -->
-        <td class="text-end {% if row.dev_trend_share is not none %}{{ 'text-success' if row.dev_trend_share > 0 else 'text-danger' if row.dev_trend_share < 0 else '' }}{% endif %}">
-          {% if row.dev_trend_share is not none %}
-            {{ "%.3f"|format(row.dev_trend_share) }}
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
+        <td class="text-end {% if row.dev_log_share is not none %}{{ 'text-success' if row.dev_log_share > 0 else 'text-danger' if row.dev_log_share < 0 else '' }}{% endif %}">
+          {% if row.dev_log_share is not none %}{{ "%.3f"|format(row.dev_log_share) }}
+          {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
 
-        <!-- Dev. Log Level (Hamilton) -->
-        <td class="text-end {% if row.dev_hamilton_level is not none %}{{ 'text-success' if row.dev_hamilton_level > 0 else 'text-danger' if row.dev_hamilton_level < 0 else '' }}{% endif %}">
-          {% if row.dev_hamilton_level is not none %}
-            {{ "%.3f"|format(row.dev_hamilton_level) }}
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
+        <td class="text-end {% if row.dev_raw_share_pct is not none %}{{ 'text-success' if row.dev_raw_share_pct > 0 else 'text-danger' if row.dev_raw_share_pct < 0 else '' }}{% endif %}">
+          {% if row.dev_raw_share_pct is not none %}{{ "%.3f"|format(row.dev_raw_share_pct) }}
+          {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
 
-        <!-- Dev. Log Share (Hamilton) -->
-        <td class="text-end {% if row.dev_hamilton_share is not none %}{{ 'text-success' if row.dev_hamilton_share > 0 else 'text-danger' if row.dev_hamilton_share < 0 else '' }}{% endif %}">
-          {% if row.dev_hamilton_share is not none %}
-            {{ "%.3f"|format(row.dev_hamilton_share) }}
-          {% else %}
-            <span class="text-muted">—</span>
-          {% endif %}
-        </td>
-
-        <!-- Denominator name (rightmost) -->
         <td class="small text-muted">{{ row.denom_name }}</td>
       </tr>
       {% endfor %}

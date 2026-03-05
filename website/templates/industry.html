@@ -7,7 +7,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- Header -->
 <div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
   <a href="/" class="btn btn-sm btn-outline-secondary">← Back to Table</a>
   <h5 class="mb-0">{{ series_data.industry_name }}</h5>
@@ -18,95 +17,62 @@
   &nbsp;|&nbsp; Denominator series: <code>{{ series_data.parent_series_id }}</code>
 </p>
 
-<!-- Download button -->
 <div class="mb-4">
-  <a href="/download/{{ series_data.series_id }}" class="btn btn-sm btn-outline-primary">
-    ⬇ Download CSV
-  </a>
+  <a href="/download/{{ series_data.series_id }}" class="btn btn-sm btn-outline-primary">⬇ Download CSV</a>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     Method 2: Pre-COVID Trend Extrapolation (top half)
-     ═══════════════════════════════════════════════════════════════════════════ -->
-<h6 class="fw-semibold mb-3 border-bottom pb-1">Method 2: Pre-COVID Trend Extrapolation</h6>
+<p class="text-muted small mb-3">
+  All trends estimated on <strong>Jan 2010–Feb 2020</strong> and extrapolated forward.
+  Dotted vertical line marks March 2020.
+</p>
+
+<!-- ── Row 1: Log-linear Level ──────────────────────────────────────────────── -->
+<h6 class="fw-semibold mb-2 border-bottom pb-1">Employment Level — Log-Linear Trend</h6>
 <div class="row g-3 mb-4">
-  <!-- Chart 1: Level actual vs. trend -->
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Level: Actual vs. Pre-COVID Quadratic Trend</div>
-      <div class="card-body p-2">
-        <div id="chart-trend-level-actual" style="height:320px"></div>
-      </div>
+      <div class="card-header small fw-semibold">Actual vs. Linear Trend (log scale fit)</div>
+      <div class="card-body p-2"><div id="chart-ll-actual" style="height:300px"></div></div>
     </div>
   </div>
-  <!-- Chart 2: Level residual -->
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Level: Deviation from Linear Trend</div>
-      <div class="card-body p-2">
-        <div id="chart-trend-level-resid" style="height:320px"></div>
-      </div>
-    </div>
-  </div>
-  <!-- Chart 3: Share actual vs. trend -->
-  <div class="col-12 col-xl-6">
-    <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Share: Actual vs. Pre-COVID Quadratic Trend</div>
-      <div class="card-body p-2">
-        <div id="chart-trend-share-actual" style="height:320px"></div>
-      </div>
-    </div>
-  </div>
-  <!-- Chart 4: Share residual -->
-  <div class="col-12 col-xl-6">
-    <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Share: Deviation from Quadratic Trend</div>
-      <div class="card-body p-2">
-        <div id="chart-trend-share-resid" style="height:320px"></div>
-      </div>
+      <div class="card-header small fw-semibold">Log Deviation from Linear Trend</div>
+      <div class="card-body p-2"><div id="chart-ll-resid" style="height:300px"></div></div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     Method 1: Pre-COVID Hamilton Filter (bottom half)
-     ═══════════════════════════════════════════════════════════════════════════ -->
-<h6 class="fw-semibold mb-3 border-bottom pb-1">Method 1: Pre-COVID Hamilton Filter</h6>
+<!-- ── Row 2: Log-linear Share ──────────────────────────────────────────────── -->
+<h6 class="fw-semibold mb-2 border-bottom pb-1">Employment Share — Log-Linear Trend</h6>
+<div class="row g-3 mb-4">
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm">
+      <div class="card-header small fw-semibold">Actual vs. Linear Trend (log scale fit)</div>
+      <div class="card-body p-2"><div id="chart-ls-actual" style="height:300px"></div></div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm">
+      <div class="card-header small fw-semibold">Log Deviation from Linear Trend</div>
+      <div class="card-body p-2"><div id="chart-ls-resid" style="height:300px"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 3: Raw-share Quadratic/Linear Trend ──────────────────────────────── -->
+<h6 class="fw-semibold mb-2 border-bottom pb-1">Employment Share — Raw Quadratic/Linear Trend</h6>
 <div class="row g-3">
-  <!-- Chart 5: Level actual vs. Hamilton counterfactual -->
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Level: Actual vs. Hamilton Counterfactual</div>
-      <div class="card-body p-2">
-        <div id="chart-ham-level-actual" style="height:320px"></div>
-      </div>
+      <div class="card-header small fw-semibold">Actual vs. Quadratic/Linear Trend (raw share)</div>
+      <div class="card-body p-2"><div id="chart-rs-actual" style="height:300px"></div></div>
     </div>
   </div>
-  <!-- Chart 6: Level residual (Hamilton) -->
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Level: Deviation from Hamilton Counterfactual</div>
-      <div class="card-body p-2">
-        <div id="chart-ham-level-resid" style="height:320px"></div>
-      </div>
-    </div>
-  </div>
-  <!-- Chart 7: Share actual vs. Hamilton counterfactual -->
-  <div class="col-12 col-xl-6">
-    <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Share: Actual vs. Hamilton Counterfactual</div>
-      <div class="card-body p-2">
-        <div id="chart-ham-share-actual" style="height:320px"></div>
-      </div>
-    </div>
-  </div>
-  <!-- Chart 8: Share residual (Hamilton) -->
-  <div class="col-12 col-xl-6">
-    <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Share: Deviation from Hamilton Counterfactual</div>
-      <div class="card-body p-2">
-        <div id="chart-ham-share-resid" style="height:320px"></div>
-      </div>
+      <div class="card-header small fw-semibold">% Deviation from Trend — (Actual − Trend) / Trend</div>
+      <div class="card-body p-2"><div id="chart-rs-resid" style="height:300px"></div></div>
     </div>
   </div>
 </div>
@@ -115,166 +81,103 @@
 {% block scripts %}
 <script>
 const d = {{ series_json | safe }};
-
 const DATES  = d.dates;
-const M2020  = d.march2020;   // "2020-03-01" vertical reference line
+const M2020  = d.march2020;
 const CONFIG = {responsive: true, displayModeBar: false};
 
-const LAYOUT_BASE = {
+const BASE_LAYOUT = {
   margin: {t: 20, b: 40, l: 65, r: 20},
   xaxis: {type: 'date', showgrid: false, tickformat: '%Y'},
   yaxis: {showgrid: true, gridcolor: '#eee', zeroline: false},
   hovermode: 'x unified',
-  legend: {orientation: 'h', y: -0.18},
+  legend: {orientation: 'h', y: -0.2},
   plot_bgcolor: '#fff',
   paper_bgcolor: '#fff',
 };
 
-// Vertical line shape at March 2020
 function covidShape() {
-  return {
-    type: 'line',
-    x0: M2020, x1: M2020,
-    y0: 0, y1: 1, yref: 'paper',
-    line: {color: '#9ca3af', width: 1, dash: 'dot'},
-  };
+  return {type:'line', x0:M2020, x1:M2020, y0:0, y1:1, yref:'paper',
+          line:{color:'#9ca3af', width:1, dash:'dot'}};
+}
+function zeroTrace() {
+  return {x:[DATES[0],DATES[DATES.length-1]], y:[0,0],
+          type:'scatter', mode:'lines',
+          line:{color:'#dc2626', width:1, dash:'dash'},
+          name:'Zero', showlegend:false, hoverinfo:'skip'};
 }
 
-// Zero-line annotation helper
-function zeroLine() {
-  return {
-    x: [DATES[0], DATES[DATES.length - 1]], y: [0, 0],
-    type: 'scatter', mode: 'lines',
-    line: {color: '#dc2626', width: 1, dash: 'dash'},
-    name: 'Zero', showlegend: false,
-    hoverinfo: 'skip',
-  };
-}
-
-// ── Chart 1: Level — Actual vs. Pre-COVID Linear Trend ─────────────────────
-Plotly.newPlot('chart-trend-level-actual', [
-  {x: DATES, y: d.emp_level,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#2563eb', width: 1.5},
-   name: 'Actual Employment'},
-  {x: DATES, y: d.trend_level_cf,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#f97316', width: 1.5, dash: 'dash'},
-   name: 'Pre-COVID Quadratic Trend (Jan 2010–Feb 2020 fit)'},
+// ── Chart 1: Level actual vs. linear trend ─────────────────────────────────
+Plotly.newPlot('chart-ll-actual', [
+  {x:DATES, y:d.emp_level,      type:'scatter', mode:'lines',
+   line:{color:'#2563eb',width:1.5}, name:'Actual Employment'},
+  {x:DATES, y:d.trend_ll_level, type:'scatter', mode:'lines',
+   line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Linear Trend'},
 ], {
-  ...LAYOUT_BASE,
-  yaxis: {...LAYOUT_BASE.yaxis, title: {text: 'Employment (thousands)', font: {size: 11}}},
-  shapes: [covidShape()],
+  ...BASE_LAYOUT,
+  yaxis:{...BASE_LAYOUT.yaxis, title:{text:'Employment (thousands)',font:{size:11}}},
+  shapes:[covidShape()],
 }, CONFIG);
 
-// ── Chart 2: Level — Residual from Linear Trend ────────────────────────────
-Plotly.newPlot('chart-trend-level-resid', [
-  {x: DATES, y: d.resid_trend_level,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#2563eb', width: 1.5},
-   name: 'Residual',
-   connectgaps: false},
-  zeroLine(),
+// ── Chart 2: Level log residual ────────────────────────────────────────────
+Plotly.newPlot('chart-ll-resid', [
+  {x:DATES, y:d.resid_ll_level, type:'scatter', mode:'lines',
+   line:{color:'#2563eb',width:1.5}, name:'Log deviation', connectgaps:false},
+  zeroTrace(),
 ], {
-  ...LAYOUT_BASE,
-  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f',
-          title: {text: 'Deviation from Counterfactual Log Level (Quadratic Trend)', font: {size: 11}}},
-  shapes: [covidShape()],
+  ...BASE_LAYOUT,
+  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
+         title:{text:'Log deviation from linear trend',font:{size:11}}},
+  shapes:[covidShape()],
 }, CONFIG);
 
-// ── Chart 3: Share — Actual vs. Pre-COVID Quadratic Trend ──────────────────
-Plotly.newPlot('chart-trend-share-actual', [
-  {x: DATES, y: d.emp_share_pct,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#2563eb', width: 1.5},
-   name: 'Actual Share'},
-  {x: DATES, y: d.trend_share_cf_pct,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#f97316', width: 1.5, dash: 'dash'},
-   name: 'Pre-COVID Quadratic Trend'},
+// ── Chart 3: Share (log-linear) actual vs. trend ───────────────────────────
+Plotly.newPlot('chart-ls-actual', [
+  {x:DATES, y:d.emp_share_pct,      type:'scatter', mode:'lines',
+   line:{color:'#2563eb',width:1.5}, name:'Actual Share'},
+  {x:DATES, y:d.trend_ls_share_pct, type:'scatter', mode:'lines',
+   line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Linear Trend'},
 ], {
-  ...LAYOUT_BASE,
-  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.3f',
-          title: {text: 'Employment Share (%)', font: {size: 11}}},
-  shapes: [covidShape()],
+  ...BASE_LAYOUT,
+  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.3f',
+         title:{text:'Employment Share (%)',font:{size:11}}},
+  shapes:[covidShape()],
 }, CONFIG);
 
-// ── Chart 4: Share — Residual from Quadratic Trend ─────────────────────────
-Plotly.newPlot('chart-trend-share-resid', [
-  {x: DATES, y: d.resid_trend_share,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#2563eb', width: 1.5},
-   name: 'Residual',
-   connectgaps: false},
-  zeroLine(),
+// ── Chart 4: Share log residual ────────────────────────────────────────────
+Plotly.newPlot('chart-ls-resid', [
+  {x:DATES, y:d.resid_ls_share, type:'scatter', mode:'lines',
+   line:{color:'#2563eb',width:1.5}, name:'Log deviation', connectgaps:false},
+  zeroTrace(),
 ], {
-  ...LAYOUT_BASE,
-  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f',
-          title: {text: 'Deviation from Counterfactual Log Share (Quadratic Trend)', font: {size: 11}}},
-  shapes: [covidShape()],
+  ...BASE_LAYOUT,
+  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
+         title:{text:'Log deviation from linear trend',font:{size:11}}},
+  shapes:[covidShape()],
 }, CONFIG);
 
-// ── Chart 5: Level — Actual vs. Hamilton Counterfactual ────────────────────
-Plotly.newPlot('chart-ham-level-actual', [
-  {x: DATES, y: d.emp_level,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#2563eb', width: 1.5},
-   name: 'Actual Employment'},
-  {x: DATES, y: d.hamilton_cf_level,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#f97316', width: 1.5, dash: 'dash'},
-   name: 'Pre-COVID Implied Path (Hamilton Filter)'},
+// ── Chart 5: Raw share actual vs. quad/linear trend ────────────────────────
+Plotly.newPlot('chart-rs-actual', [
+  {x:DATES, y:d.emp_share_pct,      type:'scatter', mode:'lines',
+   line:{color:'#2563eb',width:1.5}, name:'Actual Share'},
+  {x:DATES, y:d.trend_rs_share_pct, type:'scatter', mode:'lines',
+   line:{color:'#f97316',width:1.5,dash:'dash'}, name:'Pre-COVID Quad./Lin. Trend'},
 ], {
-  ...LAYOUT_BASE,
-  yaxis: {...LAYOUT_BASE.yaxis, title: {text: 'Employment (thousands)', font: {size: 11}}},
-  shapes: [covidShape()],
+  ...BASE_LAYOUT,
+  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.3f',
+         title:{text:'Employment Share (%)',font:{size:11}}},
+  shapes:[covidShape()],
 }, CONFIG);
 
-// ── Chart 6: Level — Residual from Hamilton ────────────────────────────────
-Plotly.newPlot('chart-ham-level-resid', [
-  {x: DATES, y: d.resid_hamilton_level,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#2563eb', width: 1.5},
-   name: 'Residual',
-   connectgaps: false},
-  zeroLine(),
+// ── Chart 6: Raw share % deviation ────────────────────────────────────────
+Plotly.newPlot('chart-rs-resid', [
+  {x:DATES, y:d.resid_rs_pct, type:'scatter', mode:'lines',
+   line:{color:'#2563eb',width:1.5}, name:'% deviation', connectgaps:false},
+  zeroTrace(),
 ], {
-  ...LAYOUT_BASE,
-  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f',
-          title: {text: 'Deviation from Counterfactual Log Level (Hamilton Filter)', font: {size: 11}}},
-  shapes: [covidShape()],
-}, CONFIG);
-
-// ── Chart 7: Share — Actual vs. Hamilton Counterfactual ────────────────────
-Plotly.newPlot('chart-ham-share-actual', [
-  {x: DATES, y: d.emp_share_pct,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#2563eb', width: 1.5},
-   name: 'Actual Share'},
-  {x: DATES, y: d.hamilton_cf_share_pct,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#f97316', width: 1.5, dash: 'dash'},
-   name: 'Pre-COVID Implied Share (Hamilton Filter)'},
-], {
-  ...LAYOUT_BASE,
-  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.3f',
-          title: {text: 'Employment Share (%)', font: {size: 11}}},
-  shapes: [covidShape()],
-}, CONFIG);
-
-// ── Chart 8: Share — Residual from Hamilton ────────────────────────────────
-Plotly.newPlot('chart-ham-share-resid', [
-  {x: DATES, y: d.resid_hamilton_share,
-   type: 'scatter', mode: 'lines',
-   line: {color: '#2563eb', width: 1.5},
-   name: 'Residual',
-   connectgaps: false},
-  zeroLine(),
-], {
-  ...LAYOUT_BASE,
-  yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f',
-          title: {text: 'Deviation from Counterfactual Log Share (Hamilton Filter)', font: {size: 11}}},
-  shapes: [covidShape()],
+  ...BASE_LAYOUT,
+  yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
+         title:{text:'(Actual − Trend) / Trend',font:{size:11}}},
+  shapes:[covidShape()],
 }, CONFIG);
 </script>
 {% endblock %}
