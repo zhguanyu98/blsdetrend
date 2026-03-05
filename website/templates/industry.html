@@ -71,7 +71,7 @@
 
 <!-- ── Row 3: Raw-share Quad/Linear (option-dependent) ──────────────────── -->
 <h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-rs">Employment Share — Raw Linear Trend</h6>
-<div class="row g-3">
+<div class="row g-3 mb-4">
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
       <div class="card-header small fw-semibold" id="hdr-rs-actual">Actual vs. Linear Trend</div>
@@ -82,6 +82,23 @@
     <div class="card shadow-sm">
       <div class="card-header small fw-semibold">% Deviation from Trend — (Actual − Trend) / Trend</div>
       <div class="card-body p-2"><div id="chart-rs-resid" style="height:300px"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 4: HP Filter Log Share (option-dependent) ────────────────────── -->
+<h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-hp">Employment Share — HP Filter Counterfactual</h6>
+<div class="row g-3">
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm">
+      <div class="card-header small fw-semibold" id="hdr-hp-actual">Actual vs. HP Trend / Extrapolated</div>
+      <div class="card-body p-2"><div id="chart-hp-actual" style="height:300px"></div></div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm">
+      <div class="card-header small fw-semibold">Deviation from Counterfactual Log Share (HP Filter)</div>
+      <div class="card-body p-2"><div id="chart-hp-resid" style="height:300px"></div></div>
     </div>
   </div>
 </div>
@@ -183,6 +200,47 @@ function renderShareCharts(opt) {
   ], {...BASE_LAYOUT,
       yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
              title:{text:'(Actual − Trend) / Trend',font:{size:11}}},
+      shapes:[covidShape()]}, CONFIG);
+
+  // ── Charts 7 & 8: HP filter counterfactual ────────────────────────────────
+  document.getElementById('hdr-hp-actual').textContent =
+    `Actual vs. HP Trend / Extrapolated  (${denomLabel})`;
+
+  // Split HP counterfactual at March 2020: pre = HP trend, post = linear extrapolation
+  const splitIdx = DATES.findIndex(d => d >= M2020);
+  const hpCf     = o.hp_cf_share_pct;
+  const hpTraces = [];
+  if (hpCf && splitIdx > 0) {
+    hpTraces.push({
+      x: DATES.slice(0, splitIdx), y: hpCf.slice(0, splitIdx),
+      type:'scatter', mode:'lines',
+      line:{color:'#f97316', width:1.5, dash:'dash'},
+      name:'HP Trend', showlegend:true,
+    });
+    hpTraces.push({
+      x: DATES.slice(splitIdx - 1), y: hpCf.slice(splitIdx - 1),
+      type:'scatter', mode:'lines',
+      line:{color:'#fb923c', width:1.5, dash:'dot'},
+      name:'HP Extrapolated', showlegend:true,
+    });
+  }
+
+  Plotly.react('chart-hp-actual', [
+    {x:DATES, y:o.emp_share_pct, type:'scatter', mode:'lines',
+     line:{color:'#2563eb',width:1.5}, name:'Actual Share'},
+    ...hpTraces,
+  ], {...BASE_LAYOUT,
+      yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.3f',
+             title:{text:`Employment Share (%)  ${denomLabel}`,font:{size:11}}},
+      shapes:[covidShape()]}, CONFIG);
+
+  Plotly.react('chart-hp-resid', [
+    {x:DATES, y:o.resid_hp, type:'scatter', mode:'lines',
+     line:{color:'#2563eb',width:1.5}, name:'Log deviation (HP)', connectgaps:false},
+    zeroTrace(),
+  ], {...BASE_LAYOUT,
+      yaxis:{...BASE_LAYOUT.yaxis, tickformat:'.4f',
+             title:{text:'Deviation from Counterfactual Log Share (HP Filter)',font:{size:11}}},
       shapes:[covidShape()]}, CONFIG);
 }
 

@@ -31,6 +31,7 @@
   <div id="fn-ll-level"><sup>1</sup> <strong>Dev. Log Level:</strong> log(emp) minus a linear time trend (Jan 2010–Feb 2020). Unaffected by denominator choice.</div>
   <div id="fn-ls-share"><sup>2</sup> <strong>Dev. Log Share:</strong> log(share) minus a linear time trend (Jan 2010–Feb 2020). Changes with denominator.</div>
   <div id="fn-rs-share"><sup>3</sup> <strong>Dev. Raw Share:</strong> (actual−trend)/trend where trend is linear (Jan 2010–Feb 2020). Changes with denominator.</div>
+  <div id="fn-hp-share"><sup>4</sup> <strong>Dev. Log Share (HP):</strong> log(share) minus HP-filter counterfactual (λ=129,600, fit Jan 2010–Feb 2020, extrapolated by last-24-month slope). Changes with denominator.</div>
 </div>
 
 <div class="table-responsive bls-table-wrapper">
@@ -47,6 +48,8 @@
           <a href="#fn-ls-share" class="text-muted ms-1" style="font-size:0.7em"><sup>2</sup></a></th>
         <th>Dev. Raw Share<br><small class="text-muted">(linear trend)</small>
           <a href="#fn-rs-share" class="text-muted ms-1" style="font-size:0.7em"><sup>3</sup></a></th>
+        <th>Dev. Log Share (HP)<br><small class="text-muted">(HP filter)</small>
+          <a href="#fn-hp-share" class="text-muted ms-1" style="font-size:0.7em"><sup>4</sup></a></th>
         <th id="th-denom">Denominator</th>
       </tr>
     </thead>
@@ -77,6 +80,7 @@
         </td>
         <td class="text-end td-dev-ls"></td>
         <td class="text-end td-dev-rs"></td>
+        <td class="text-end td-dev-hp"></td>
         <td class="small text-muted td-denom-name"></td>
       </tr>
       {% endfor %}
@@ -143,6 +147,10 @@ function applyOpt(opt) {
     // Dev raw share
     const tdRs = tr.querySelector(".td-dev-rs");
     if (tdRs) tdRs.innerHTML = fmtVal(o.dev_raw_share_pct, 3);
+
+    // Dev log share HP
+    const tdHp = tr.querySelector(".td-dev-hp");
+    if (tdHp) tdHp.innerHTML = fmtVal(o.dev_log_share_hp, 3);
 
     // Denominator name
     const tdDn = tr.querySelector(".td-denom-name");

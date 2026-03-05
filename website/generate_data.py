@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.stats import percentileofscore
+from statsmodels.tsa.filters.hp_filter import hpfilter
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE     = Path(__file__).parent.parent
@@ -118,6 +119,9 @@ def fit_log_linear(log_vals: np.ndarray):
     return trend, resid
 
 
+FEB2020_TIDX = (2020 - 2000) * 12 + (2 - 1)  # time_index value for Feb 2020 = 241
+
+
 def fit_raw_linear(raw_vals: np.ndarray):
     """
     Linear trend on raw values, Jan 2010–Feb 2020.
@@ -139,6 +143,41 @@ def fit_raw_linear(raw_vals: np.ndarray):
         resid_pct = np.where((trend != 0) & (np.arange(n_dates) >= fit_start_idx),
                              (raw_vals - trend) / trend, np.nan)
     return trend, resid_pct
+
+
+def fit_hp_log_share(log_shr: np.ndarray):
+    """
+    HP filter (λ=129,600) on log share, Jan 2010–Feb 2020 window.
+    Extrapolates post-Feb 2020 as a straight line using the last-24-month slope.
+    Returns (hp_cf, resid_hp):
+      - hp_cf: HP trend pre-COVID, linear extrapolation post-COVID (NaN before Jan 2010)
+      - resid_hp: log_shr - hp_cf
+    Returns (NaN, NaN) arrays if fewer than 60 pre-COVID months available.
+    """
+    mask = fit_window & ~np.isnan(log_shr)
+    n_fit = int(mask.sum())
+    if n_fit < 60:
+        nans = np.full(n_dates, np.nan)
+        return nans, nans
+
+    fit_idxs = np.where(mask)[0]
+    y_fit = log_shr[fit_idxs]
+    _, hp_trend_vals = hpfilter(y_fit, lamb=129600)
+    hp_trend_vals = np.asarray(hp_trend_vals, dtype=float)
+
+    hp_cf = np.full(n_dates, np.nan)
+    hp_cf[fit_idxs] = hp_trend_vals
+
+    # Slope from last 24 months (robust to HP endpoint bias)
+    n_slope = min(24, len(hp_trend_vals) - 1)
+    slope = (hp_trend_vals[-1] - hp_trend_vals[-1 - n_slope]) / n_slope
+
+    feb2020_val = float(hp_trend_vals[-1])
+    post_mask = time_index > FEB2020_TIDX
+    hp_cf[post_mask] = feb2020_val + slope * (time_index[post_mask] - FEB2020_TIDX)
+
+    resid_hp = np.where(~np.isnan(hp_cf), log_shr - hp_cf, np.nan)
+    return hp_cf, resid_hp
 
 
 # ── Pre-compute all series ─────────────────────────────────────────────────────
@@ -170,9 +209,11 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
 
         trend_ls, resid_ls = fit_log_linear(log_shr)
         trend_rs, resid_rs = fit_raw_linear(sv)
+        trend_hp, resid_hp = fit_hp_log_share(log_shr)
 
         opts[opt] = dict(sv=sv, trend_ls=trend_ls, resid_ls=resid_ls,
                          trend_rs=trend_rs, resid_rs=resid_rs,
+                         trend_hp=trend_hp, resid_hp=resid_hp,
                          denom_id=denom_id)
 
     results[sid] = dict(ev=ev, log_lvl=log_lvl, trend_ll=trend_ll, resid_ll=resid_ll, opts=opts)
@@ -217,11 +258,12 @@ for _, mrow in mapping.iterrows():
         share_pct = pct_of_score(sv_ser)
 
         opts_summary[str(opt)] = {
-            "share":            share_val,
-            "share_pct":        share_pct,
-            "dev_log_share":    last_nonnan3(o["resid_ls"]),
-            "dev_raw_share_pct":last_nonnan3(o["resid_rs"]),
-            "denom_name":       id_to_name.get(o["denom_id"], ""),
+            "share":             share_val,
+            "share_pct":         share_pct,
+            "dev_log_share":     last_nonnan3(o["resid_ls"]),
+            "dev_raw_share_pct": last_nonnan3(o["resid_rs"]),
+            "dev_log_share_hp":  last_nonnan3(o["resid_hp"]),
+            "denom_name":        id_to_name.get(o["denom_id"], ""),
         }
 
     rows.append({
@@ -264,16 +306,19 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
     # Per-option share data for charts 3–6
     options_json = {}
     for opt in range(1, 6):
-        o       = r["opts"][opt]
-        sv      = o["sv"]
-        t_ls    = o["trend_ls"]
-        r_ls    = o["resid_ls"]
-        t_rs    = o["trend_rs"]
-        r_rs    = o["resid_rs"]
+        o        = r["opts"][opt]
+        sv       = o["sv"]
+        t_ls     = o["trend_ls"]
+        r_ls     = o["resid_ls"]
+        t_rs     = o["trend_rs"]
+        r_rs     = o["resid_rs"]
+        t_hp     = o["trend_hp"]
+        r_hp     = o["resid_hp"]
         denom_id = o["denom_id"]
 
         with np.errstate(invalid="ignore", divide="ignore"):
             t_ls_impl = np.where(~np.isnan(t_ls), np.exp(t_ls) * 100, np.nan)
+            t_hp_impl = np.where(~np.isnan(t_hp), np.exp(t_hp) * 100, np.nan)
 
         options_json[str(opt)] = {
             "denom_name":         id_to_name.get(denom_id, ""),
@@ -283,6 +328,8 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
             "resid_ls_share":     arr_to_list(r_ls,          6),
             "trend_rs_share_pct": arr_to_list(t_rs * 100,    4),
             "resid_rs_pct":       arr_to_list(r_rs,          6),
+            "hp_cf_share_pct":    arr_to_list(t_hp_impl,     4),
+            "resid_hp":           arr_to_list(r_hp,          6),
         }
 
     industry_data = {
@@ -317,14 +364,20 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
             log_shr = np.where(o["sv"] > 0, np.log(o["sv"]), np.nan)
             pred_ls = np.where(~np.isnan(o["trend_ls"]), np.exp(o["trend_ls"]), np.nan)
 
-        rows_csv[f"share_opt{opt}"]              = o["sv"]
-        rows_csv[f"denom_employment_opt{opt}"]   = dv
-        rows_csv[f"log_share_opt{opt}"]          = log_shr
-        rows_csv[f"trend_log_share_opt{opt}"]    = o["trend_ls"]
-        rows_csv[f"predicted_share_opt{opt}"]    = pred_ls
-        rows_csv[f"resid_log_share_opt{opt}"]    = o["resid_ls"]
-        rows_csv[f"trend_raw_share_opt{opt}"]    = o["trend_rs"]
-        rows_csv[f"resid_raw_pct_dev_opt{opt}"]  = o["resid_rs"]
+        with np.errstate(invalid="ignore", divide="ignore"):
+            pred_hp = np.where(~np.isnan(o["trend_hp"]), np.exp(o["trend_hp"]) * 100, np.nan)
+
+        rows_csv[f"share_opt{opt}"]               = o["sv"]
+        rows_csv[f"denom_employment_opt{opt}"]    = dv
+        rows_csv[f"log_share_opt{opt}"]           = log_shr
+        rows_csv[f"trend_log_share_opt{opt}"]     = o["trend_ls"]
+        rows_csv[f"predicted_share_opt{opt}"]     = pred_ls
+        rows_csv[f"resid_log_share_opt{opt}"]     = o["resid_ls"]
+        rows_csv[f"trend_raw_share_opt{opt}"]     = o["trend_rs"]
+        rows_csv[f"resid_raw_pct_dev_opt{opt}"]   = o["resid_rs"]
+        rows_csv[f"hp_cf_log_share_opt{opt}"]     = o["trend_hp"]
+        rows_csv[f"predicted_share_hp_opt{opt}"]  = pred_hp
+        rows_csv[f"resid_log_share_hp_opt{opt}"]  = o["resid_hp"]
 
     export_df = pd.DataFrame(rows_csv)
     csv_path  = DATA_OUT / f"{sid}_export.csv"
