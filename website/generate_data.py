@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import percentileofscore
+from scipy.stats import percentileofscore, t as t_dist
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE     = Path(__file__).parent.parent          # BLS/
@@ -101,7 +101,8 @@ today_str = date.today().strftime("%Y-%m-%d")
 
 def compute_trend(log_vals: np.ndarray):
     """
-    Fit quadratic (degree-2) trend on Jan 2010 – Feb 2020.
+    Fit trend on Jan 2010 – Feb 2020. Try quadratic first; if the t² term
+    is not significant at p=0.05, fall back to linear.
     Extrapolates from Jan 2010 onwards; NaN before Jan 2010.
     Returns (trend_log, resid_log) numpy arrays.
     """
@@ -112,11 +113,29 @@ def compute_trend(log_vals: np.ndarray):
         return nans, nans
 
     t_fit, y_fit = t[mask], log_vals[mask]
-    X_fit = np.column_stack([np.ones(len(t_fit)), t_fit, t_fit**2])
-    X_all = np.column_stack([np.ones(n_dates),   t,    t**2])
+    n_obs = len(y_fit)
 
-    coeffs    = np.linalg.lstsq(X_fit, y_fit, rcond=None)[0]
-    trend_all = X_all @ coeffs
+    # Try quadratic
+    X2 = np.column_stack([np.ones(n_obs), t_fit, t_fit**2])
+    c2 = np.linalg.lstsq(X2, y_fit, rcond=None)[0]
+    resid2 = y_fit - X2 @ c2
+    s2 = np.dot(resid2, resid2) / (n_obs - 3)
+    try:
+        se_quad = np.sqrt(max(s2 * np.linalg.inv(X2.T @ X2)[2, 2], 0.0))
+        p_quad  = 2 * t_dist.sf(abs(c2[2] / se_quad), df=n_obs - 3) if se_quad > 0 else 1.0
+    except np.linalg.LinAlgError:
+        p_quad = 1.0
+
+    if p_quad <= 0.05:
+        # Quadratic term significant — use quadratic
+        X_all     = np.column_stack([np.ones(n_dates), t, t**2])
+        trend_all = X_all @ c2
+    else:
+        # Fall back to linear
+        X1 = np.column_stack([np.ones(n_obs), t_fit])
+        c1 = np.linalg.lstsq(X1, y_fit, rcond=None)[0]
+        X_all     = np.column_stack([np.ones(n_dates), t])
+        trend_all = X_all @ c1
 
     # NaN before Jan 2010
     trend = np.where(np.arange(n_dates) >= fit_start_idx, trend_all, np.nan)
