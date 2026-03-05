@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import percentileofscore, t as t_dist
+from scipy.stats import percentileofscore
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE     = Path(__file__).parent.parent          # BLS/
@@ -101,9 +101,7 @@ today_str = date.today().strftime("%Y-%m-%d")
 
 def compute_trend(log_vals: np.ndarray):
     """
-    Fit polynomial trend on Jan 2010 – Feb 2020, starting at degree 3.
-    Drop the highest-degree term and re-estimate if its p-value > 0.05,
-    repeating down to degree 1 (always kept).
+    Fit quadratic (degree-2) trend on Jan 2010 – Feb 2020.
     Extrapolates from Jan 2010 onwards; NaN before Jan 2010.
     Returns (trend_log, resid_log) numpy arrays.
     """
@@ -114,44 +112,11 @@ def compute_trend(log_vals: np.ndarray):
         return nans, nans
 
     t_fit, y_fit = t[mask], log_vals[mask]
-    n_obs = len(y_fit)
+    X_fit = np.column_stack([np.ones(len(t_fit)), t_fit, t_fit**2])
+    X_all = np.column_stack([np.ones(n_dates),   t,    t**2])
 
-    final_coeffs = None
-    final_degree = 1
-
-    for degree in (3, 2, 1):
-        cols = [np.ones(n_obs)] + [t_fit**d for d in range(1, degree + 1)]
-        X_fit = np.column_stack(cols)
-        n_params = X_fit.shape[1]
-
-        coeffs = np.linalg.lstsq(X_fit, y_fit, rcond=None)[0]
-
-        if degree == 1:
-            final_coeffs = coeffs
-            final_degree = 1
-            break
-
-        # t-test on highest-degree term
-        resid_fit = y_fit - X_fit @ coeffs
-        s2 = np.dot(resid_fit, resid_fit) / (n_obs - n_params)
-        try:
-            XtX_inv = np.linalg.inv(X_fit.T @ X_fit)
-        except np.linalg.LinAlgError:
-            continue
-        se_high = np.sqrt(max(s2 * XtX_inv[-1, -1], 0.0))
-        if se_high == 0:
-            continue
-        p_val = 2 * t_dist.sf(abs(coeffs[-1] / se_high), df=n_obs - n_params)
-
-        if p_val <= 0.05:
-            final_coeffs = coeffs
-            final_degree = degree
-            break
-        # else: drop this degree and try lower
-
-    # Extrapolate using final polynomial
-    cols_all = [np.ones(n_dates)] + [t**d for d in range(1, final_degree + 1)]
-    trend_all = np.column_stack(cols_all) @ final_coeffs
+    coeffs    = np.linalg.lstsq(X_fit, y_fit, rcond=None)[0]
+    trend_all = X_all @ coeffs
 
     # NaN before Jan 2010
     trend = np.where(np.arange(n_dates) >= fit_start_idx, trend_all, np.nan)
@@ -192,8 +157,11 @@ def compute_hamilton(log_vals: np.ndarray):
     alpha, b1, b2, b3, b4 = coeffs
 
     # Apply directly using actual lagged values at every date (no recursion)
+    # Only report from Jan 2010 onwards (matching estimation window)
     cf = np.full(n_dates, np.nan)
     for t_idx in range(27, n_dates):
+        if t_idx < fit_start_idx:
+            continue
         lags = y[t_idx-24], y[t_idx-25], y[t_idx-26], y[t_idx-27]
         if any(np.isnan(lags)):
             continue
