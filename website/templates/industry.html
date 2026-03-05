@@ -33,7 +33,7 @@
   <!-- Chart 1: Level actual vs. trend -->
   <div class="col-12 col-xl-6">
     <div class="card shadow-sm">
-      <div class="card-header small fw-semibold">Level: Actual vs. Pre-COVID Linear Trend</div>
+      <div class="card-header small fw-semibold">Level: Actual vs. Pre-COVID Quadratic Trend</div>
       <div class="card-body p-2">
         <div id="chart-trend-level-actual" style="height:320px"></div>
       </div>
@@ -160,7 +160,7 @@ Plotly.newPlot('chart-trend-level-actual', [
   {x: DATES, y: d.trend_level_cf,
    type: 'scatter', mode: 'lines',
    line: {color: '#f97316', width: 1.5, dash: 'dash'},
-   name: 'Pre-COVID Linear Trend'},
+   name: 'Pre-COVID Quadratic Trend (Jan 2010–Feb 2020)'},
 ], {
   ...LAYOUT_BASE,
   yaxis: {...LAYOUT_BASE.yaxis, title: {text: 'Employment (thousands)', font: {size: 11}}},
@@ -178,7 +178,7 @@ Plotly.newPlot('chart-trend-level-resid', [
 ], {
   ...LAYOUT_BASE,
   yaxis: {...LAYOUT_BASE.yaxis, tickformat: '.4f',
-          title: {text: 'Deviation from Counterfactual Log Level (Linear Trend)', font: {size: 11}}},
+          title: {text: 'Deviation from Counterfactual Log Level (Quadratic Trend)', font: {size: 11}}},
   shapes: [covidShape()],
 }, CONFIG);
 

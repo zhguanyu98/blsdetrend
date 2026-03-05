@@ -83,6 +83,11 @@ feb2020      = pd.Timestamp("2020-02-01")
 pre_covid    = np.array(all_dates <= feb2020)          # bool array
 feb2020_idx  = int(np.where(pre_covid)[0][-1])        # last pre-COVID position
 
+# Trend fit window: Jan 2010 – Feb 2020
+jan2010       = pd.Timestamp("2010-01-01")
+fit_window    = np.array((all_dates >= jan2010) & (all_dates <= feb2020))  # bool array
+fit_start_idx = int(np.where(fit_window)[0][0])       # first Jan-2010 position
+
 MARCH2020_STR = "2020-03-01"
 
 last_dt  = all_dates[-1]
@@ -94,35 +99,37 @@ today_str = date.today().strftime("%Y-%m-%d")
 
 # ── Detrending functions ───────────────────────────────────────────────────────
 
-def compute_trend(log_vals: np.ndarray, degree: int):
+def compute_trend(log_vals: np.ndarray):
     """
-    Fit polynomial trend (degree 1 or 2) on pre-COVID data, extrapolate to all dates.
+    Fit quadratic trend on Jan 2010 – Feb 2020 data.
+    Extrapolates from Jan 2010 onwards; NaN before Jan 2010.
     Returns (trend_log, resid_log) numpy arrays.
     """
-    t = time_index
-    mask = pre_covid & ~np.isnan(log_vals)
+    t    = time_index
+    mask = fit_window & ~np.isnan(log_vals)
     if mask.sum() < 10:
         nans = np.full(n_dates, np.nan)
         return nans, nans
 
-    t_pre, y_pre = t[mask], log_vals[mask]
-    if degree == 1:
-        X_pre = np.column_stack([np.ones(len(t_pre)), t_pre])
-        X_all = np.column_stack([np.ones(n_dates),   t])
-    else:
-        X_pre = np.column_stack([np.ones(len(t_pre)), t_pre, t_pre**2])
-        X_all = np.column_stack([np.ones(n_dates),   t,    t**2])
+    t_fit, y_fit = t[mask], log_vals[mask]
+    X_fit = np.column_stack([np.ones(len(t_fit)), t_fit, t_fit**2])
+    X_all = np.column_stack([np.ones(n_dates),   t,    t**2])
 
-    coeffs = np.linalg.lstsq(X_pre, y_pre, rcond=None)[0]
-    trend  = X_all @ coeffs
-    resid  = log_vals - trend
+    coeffs    = np.linalg.lstsq(X_fit, y_fit, rcond=None)[0]
+    trend_all = X_all @ coeffs
+
+    # Only expose trend from Jan 2010 onwards
+    trend = np.where(np.arange(n_dates) >= fit_start_idx, trend_all, np.nan)
+    resid = log_vals - trend
     return trend, resid
 
 
 def compute_hamilton(log_vals: np.ndarray):
     """
     Estimate Hamilton (2018) OLS on pre-COVID data.
-    Recursively generate counterfactual post-COVID using saved coefficients.
+    Pre-COVID: counterfactual = in-sample OLS fitted values (≠ actual).
+    Post-COVID: recursive counterfactual; lags drawn from actual when ≤ Feb 2020,
+                from already-computed counterfactual when > Feb 2020.
     Returns (cf_log, resid_log) or (None, None) if insufficient data.
     """
     y = log_vals.copy()
@@ -151,15 +158,31 @@ def compute_hamilton(log_vals: np.ndarray):
     coeffs = np.linalg.lstsq(np.array(X_rows), np.array(y_rows), rcond=None)[0]
     alpha, b1, b2, b3, b4 = coeffs
 
-    # Counterfactual: actual for pre-COVID, recursive thereafter
     cf = np.full(n_dates, np.nan)
-    cf[:feb2020_idx + 1] = y[:feb2020_idx + 1]
 
-    for t in range(feb2020_idx + 1, n_dates):
-        lags = cf[t-24], cf[t-25], cf[t-26], cf[t-27]
+    # Pre-COVID: in-sample fitted values (requires t ≥ 27 for all lags to exist)
+    for t in range(27, feb2020_idx + 1):
+        if np.isnan(y[t]):
+            continue
+        lags = y[t-24], y[t-25], y[t-26], y[t-27]
         if any(np.isnan(lags)):
             continue
         cf[t] = alpha + b1*lags[0] + b2*lags[1] + b3*lags[2] + b4*lags[3]
+
+    # Post-COVID: recursive; use actual y for lags ≤ Feb 2020, cf otherwise
+    for t in range(feb2020_idx + 1, n_dates):
+        lag_vals = []
+        for lag in (24, 25, 26, 27):
+            idx = t - lag
+            if idx < 0:
+                lag_vals.append(np.nan)
+            elif idx <= feb2020_idx:
+                lag_vals.append(y[idx])    # actual pre-COVID value
+            else:
+                lag_vals.append(cf[idx])   # already-computed counterfactual
+        if any(np.isnan(lag_vals)):
+            continue
+        cf[t] = alpha + b1*lag_vals[0] + b2*lag_vals[1] + b3*lag_vals[2] + b4*lag_vals[3]
 
     resid = y - cf
     return cf, resid
@@ -169,8 +192,8 @@ def compute_hamilton(log_vals: np.ndarray):
 print("Computing detrended series for all industries…")
 
 # DataFrames to collect results
-trend_lvl_cf  = pd.DataFrame(index=all_dates)   # linear trend log level
-trend_shr_cf  = pd.DataFrame(index=all_dates)   # quadratic trend log share
+trend_lvl_cf  = pd.DataFrame(index=all_dates)   # quadratic trend log level (Jan2010 fit)
+trend_shr_cf  = pd.DataFrame(index=all_dates)   # quadratic trend log share (Jan2010 fit)
 resid_tlvl    = pd.DataFrame(index=all_dates)
 resid_tshr    = pd.DataFrame(index=all_dates)
 ham_cf_lvl    = pd.DataFrame(index=all_dates)   # Hamilton cf log level
@@ -198,9 +221,9 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
     with np.errstate(invalid="ignore", divide="ignore"):
         log_shr = np.where(sv > 0, np.log(sv), np.nan)
 
-    # Method 2 — Trend extrapolation
-    t_lvl, r_tlvl = compute_trend(log_lvl, degree=1)
-    t_shr, r_tshr = compute_trend(log_shr, degree=2)
+    # Method 2 — Trend extrapolation (quadratic, Jan 2010–Feb 2020 fit window)
+    t_lvl, r_tlvl = compute_trend(log_lvl)
+    t_shr, r_tshr = compute_trend(log_shr)
     trend_lvl_cf[sid] = t_lvl
     trend_shr_cf[sid] = t_shr
     resid_tlvl[sid]   = r_tlvl
