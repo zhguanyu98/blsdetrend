@@ -78,23 +78,36 @@ See `website/CLAUDE.md` for details. Summary:
 - `fit_raw_linear`: linear OLS on raw share → (trend_raw, resid_pct) where resid_pct = (actual − pred) / pred
 - Outputs `data/table_data.json`, `data/{series_id}.json`, `data/{series_id}_export.csv`
 
+**`generate_data.py`** also computes HP filter (4th method):
+- `fit_hp_log_share`: runs `hpfilter(λ=129600)` on Jan 2010–Feb 2020 log share, extrapolates post-Feb 2020 using last-24-month slope
+- `FEB2020_TIDX = 241` (months since Jan 2000)
+
 **Industry JSON structure:**
 ```
 emp_level, trend_ll_level, resid_ll_level        ← option-independent (log-linear level)
 options["1"…"5"]: {
   emp_share_pct, trend_ls_share_pct, resid_ls_share,   ← log-linear share
   trend_rs_share_pct, resid_rs_pct,                    ← raw-linear share
+  hp_cf_share_pct, resid_hp,                           ← HP filter counterfactual
   denom_name, denom_id
 }
 ```
 
-**6 charts per industry page** (3 rows × 2 cols):
+**8 charts per industry page** (4 rows × 2 cols):
 - Row 1: Log-linear level — actual vs. trend; log deviation
 - Row 2: Log-linear share — actual vs. trend; log deviation  *(option-dependent)*
-- Row 3: Raw-linear share — actual vs. trend; % deviation    *(option-dependent)*
+- Row 3: HP filter share — actual vs. HP trend/extrapolation; log deviation  *(option-dependent)*
+- Row 4: Raw-linear share — actual vs. trend; % deviation    *(option-dependent)*
+
+**Static site build** (GitHub Pages):
+```bash
+cd website
+python freeze.py   # → website/build/  (843 HTML pages + 842 CSVs)
+```
+`freeze.py` uses Frozen-Flask (`Frozen-Flask` package, `flask_frozen` module). Industry route uses trailing slash (`/<series_id>/`) so pages freeze as `build/CES.../index.html`.
 
 ## Deployment
-- Hosted on Render.com at `https://blsdetrend.onrender.com`
+- **Render.com** (live Flask): `https://blsdetrend.onrender.com` — auto-redeploys on push to `main`; `/health` endpoint for health check; free tier sleeps after 15 min idle
+- **GitHub Pages** (static): `https://zhguanyu98.github.io/blsdetrend/` — built by `.github/workflows/deploy.yml` on every push to `main`, deployed to `gh-pages` branch
 - GitHub: `https://github.com/zhguanyu98/blsdetrend`
 - Start command (in `Procfile`): `gunicorn app:app --bind 0.0.0.0:$PORT`
-- Free tier sleeps after 15 min idle; first request takes ~30–60s

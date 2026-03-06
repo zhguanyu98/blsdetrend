@@ -15,9 +15,10 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
   <div class="container-fluid">
     <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">BLS Employment Analysis</a>
-    <span class="navbar-text text-light small">
+    <span class="navbar-text text-light small me-auto">
       B-1a: Employees on Nonfarm Payrolls by Industry
     </span>
+    <a class="nav-link text-light small ms-3" href="{{ url_for('static', filename='website_guide.docx') }}" download="website_guide.docx">📄 Guide</a>
   </div>
 </nav>
 
