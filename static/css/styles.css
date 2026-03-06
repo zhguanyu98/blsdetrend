@@ -1,0 +1,88 @@
+/* ── BLS Table wrapper ─────────────────────────────────────────────── */
+.bls-table-wrapper {
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+}
+
+.bls-table {
+  font-size: 0.78rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 0;
+}
+
+/* Sticky header */
+.bls-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 2px solid #343a40;
+  white-space: nowrap;
+}
+
+/* ── Row hierarchy colors ──────────────────────────────────────────── */
+.bls-table tr.lvl-0 td {
+  background-color: #212529;
+  color: #f8f9fa;
+}
+.bls-table tr.lvl-0 td a.industry-link {
+  color: #f8f9fa;
+}
+
+.bls-table tr.lvl-1 td {
+  background-color: #e9ecef;
+}
+
+.bls-table tr.lvl-2 td {
+  background-color: #f8f9fa;
+}
+
+/* Deeper levels: alternating subtle tint */
+.bls-table tr.lvl-3 td,
+.bls-table tr.lvl-4 td,
+.bls-table tr.lvl-5 td,
+.bls-table tr.lvl-6 td,
+.bls-table tr.lvl-7 td {
+  background-color: #fff;
+}
+
+/* ── Hover ─────────────────────────────────────────────────────────── */
+.bls-table tbody tr:hover td {
+  background-color: #dbeafe !important;
+}
+
+/* ── Industry link ─────────────────────────────────────────────────── */
+a.industry-link {
+  color: #1d4ed8;
+}
+a.industry-link:hover {
+  text-decoration: underline !important;
+}
+
+/* ── Positive / negative coloring ─────────────────────────────────── */
+.text-success { color: #15803d !important; }
+.text-danger  { color: #b91c1c !important; }
+
+/* ── Sticky column for industry name ──────────────────────────────── */
+.bls-table th:first-child,
+.bls-table td.industry-name {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+
+.bls-table thead th:first-child {
+  z-index: 15;
+  background: #fff;
+}
+
+.bls-table tr.lvl-0 td.industry-name { background-color: #212529; }
+.bls-table tr.lvl-1 td.industry-name { background-color: #e9ecef; }
+.bls-table tr.lvl-2 td.industry-name { background-color: #f8f9fa; }
+.bls-table tr:not(.lvl-0):not(.lvl-1):not(.lvl-2) td.industry-name { background-color: #fff; }
+
+.bls-table tbody tr:hover td.industry-name {
+  background-color: #dbeafe !important;
+}
