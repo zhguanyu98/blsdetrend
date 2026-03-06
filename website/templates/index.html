@@ -42,14 +42,14 @@
         <th>{{ last_label }}<br><small class="text-muted">(000s)</small></th>
         <th>{{ prev_label }}<br><small class="text-muted">(000s)</small></th>
         <th>Share<br><small class="text-muted">of denom</small></th>
-        <th>Dev. Log Level<br><small class="text-muted">(linear trend)</small>
-          <a href="#fn-ll-level" class="text-muted ms-1" style="font-size:0.7em"><sup>1</sup></a></th>
-        <th>Dev. Log Share<br><small class="text-muted">(linear trend)</small>
-          <a href="#fn-ls-share" class="text-muted ms-1" style="font-size:0.7em"><sup>2</sup></a></th>
-        <th>Dev. Log Share (HP)<br><small class="text-muted">(HP filter)</small>
-          <a href="#fn-hp-share" class="text-muted ms-1" style="font-size:0.7em"><sup>3</sup></a></th>
-        <th>Dev. Raw Share<br><small class="text-muted">(linear trend)</small>
-          <a href="#fn-rs-share" class="text-muted ms-1" style="font-size:0.7em"><sup>4</sup></a></th>
+        <th data-sort-col="dev-ll" class="sortable-col" style="cursor:pointer" title="Click to sort">Dev. Log Level<br><small class="text-muted">(linear trend)</small>
+          <a href="#fn-ll-level" class="text-muted ms-1" style="font-size:0.7em"><sup>1</sup></a><span class="sort-icon ms-1 text-secondary">⇅</span></th>
+        <th data-sort-col="dev-ls" class="sortable-col" style="cursor:pointer" title="Click to sort">Dev. Log Share<br><small class="text-muted">(linear trend)</small>
+          <a href="#fn-ls-share" class="text-muted ms-1" style="font-size:0.7em"><sup>2</sup></a><span class="sort-icon ms-1 text-secondary">⇅</span></th>
+        <th data-sort-col="dev-hp" class="sortable-col" style="cursor:pointer" title="Click to sort">Dev. Log Share (HP)<br><small class="text-muted">(HP filter)</small>
+          <a href="#fn-hp-share" class="text-muted ms-1" style="font-size:0.7em"><sup>3</sup></a><span class="sort-icon ms-1 text-secondary">⇅</span></th>
+        <th data-sort-col="dev-rs" class="sortable-col" style="cursor:pointer" title="Click to sort">Dev. Raw Share<br><small class="text-muted">(linear trend)</small>
+          <a href="#fn-rs-share" class="text-muted ms-1" style="font-size:0.7em"><sup>4</sup></a><span class="sort-icon ms-1 text-secondary">⇅</span></th>
         <th id="th-denom">Denominator</th>
       </tr>
     </thead>
@@ -57,7 +57,8 @@
       {% for row in rows %}
       {% set lvl = row.display_level %}
       <tr class="lvl-{{ lvl }}{% if lvl == 0 %} table-dark fw-bold{% elif lvl == 1 %} table-secondary fw-semibold{% elif lvl == 2 %} fw-semibold{% endif %}"
-          data-sid="{{ row.series_id }}">
+          data-sid="{{ row.series_id }}"
+          data-dev-ll="{{ row.dev_log_level if row.dev_log_level is not none else '' }}">
         <td class="industry-name" style="padding-left: {{ lvl * 16 + 8 }}px">
           <a href="{{ url_for('industry', series_id=row.series_id) }}" class="text-decoration-none industry-link {% if lvl <= 1 %}text-reset{% endif %} js-industry-link">
             {{ row.industry_name }}
@@ -92,6 +93,7 @@
 {% block scripts %}
 <script>
 // ── Embed all rows' options data ───────────────────────────────────────────
+let sortState = { col: null, dir: null };
 const ROW_OPTS = {};
 {% for row in rows %}
 ROW_OPTS[{{ row.series_id | tojson }}] = {{ row.opts | tojson }};
@@ -156,6 +158,11 @@ function applyOpt(opt) {
     const tdDn = tr.querySelector(".td-denom-name");
     if (tdDn) tdDn.textContent = o.denom_name || "";
 
+    // Store values as data attributes for sorting
+    tr.dataset.devLs = o.dev_log_share != null ? o.dev_log_share : '';
+    tr.dataset.devHp = o.dev_log_share_hp != null ? o.dev_log_share_hp : '';
+    tr.dataset.devRs = o.dev_raw_share_pct != null ? o.dev_raw_share_pct : '';
+
     // Update industry link to carry denom param
     const link = tr.querySelector(".js-industry-link");
     if (link) {
@@ -163,6 +170,9 @@ function applyOpt(opt) {
       link.href = opt === "1" ? base : `${base}?denom=${opt}`;
     }
   });
+
+  // Re-apply sort if an option-dependent column is active
+  if (sortState.col && sortState.col !== 'dev-ll') applySort();
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
@@ -173,6 +183,62 @@ document.getElementById("denom-select").addEventListener("change", function() {
   const opt = this.value;
   setUrlOpt(opt);
   applyOpt(opt);
+});
+
+// ── Column sorting ─────────────────────────────────────────────────────────
+const tbody = document.querySelector('#bls-main-table tbody');
+const origOrder = Array.from(tbody.querySelectorAll('tr[data-sid]'));
+
+const KEY_MAP = { 'dev-ll': 'devLl', 'dev-ls': 'devLs', 'dev-hp': 'devHp', 'dev-rs': 'devRs' };
+
+function applySortIcons() {
+  document.querySelectorAll('th[data-sort-col]').forEach(th => {
+    const icon = th.querySelector('.sort-icon');
+    if (!icon) return;
+    const col = th.dataset.sortCol;
+    if (sortState.col === col) {
+      icon.textContent = sortState.dir === 'asc' ? '↑' : '↓';
+    } else {
+      icon.textContent = '⇅';
+    }
+  });
+}
+
+function applySort() {
+  if (!sortState.col || !sortState.dir) {
+    origOrder.forEach(tr => tbody.appendChild(tr));
+    applySortIcons();
+    return;
+  }
+  const dataKey = KEY_MAP[sortState.col];
+  const rows = Array.from(tbody.querySelectorAll('tr[data-sid]'));
+  rows.sort((a, b) => {
+    const av = a.dataset[dataKey];
+    const bv = b.dataset[dataKey];
+    const an = av === '' || av === undefined ? null : parseFloat(av);
+    const bn = bv === '' || bv === undefined ? null : parseFloat(bv);
+    if (an === null && bn === null) return 0;
+    if (an === null) return 1;   // nulls sink to bottom
+    if (bn === null) return -1;
+    return sortState.dir === 'asc' ? an - bn : bn - an;
+  });
+  rows.forEach(tr => tbody.appendChild(tr));
+  applySortIcons();
+}
+
+document.querySelectorAll('th[data-sort-col]').forEach(th => {
+  th.addEventListener('click', function(e) {
+    if (e.target.closest('a')) return;  // let footnote links pass through
+    const col = this.dataset.sortCol;
+    if (sortState.col !== col) {
+      sortState = { col, dir: 'asc' };
+    } else if (sortState.dir === 'asc') {
+      sortState = { col, dir: 'desc' };
+    } else {
+      sortState = { col: null, dir: null };
+    }
+    applySort();
+  });
 });
 </script>
 {% endblock %}
