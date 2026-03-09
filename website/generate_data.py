@@ -38,7 +38,11 @@ OPT_LABELS = {
     3: "Level 2 parent",
     4: "Goods/Service-providing total",
     5: "Total private / Total government",
+    6: "Total nonfarm",
 }
+
+DENOM_OPT6_ID = "CES0000000001"   # Total nonfarm — same for every industry
+SNAP_LAGS     = [1, 3, 6, 9, 12, 15]  # month lags stored for direction / 2nd-deriv
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -88,6 +92,12 @@ def peak_covid_scalar(arr: np.ndarray, idxs: list):
             best_abs = abs(v)
             best_val = v
     return best_val
+
+
+def lag_snapshots(arr: np.ndarray, lv_idx: int) -> dict:
+    """Return {_1m, _3m, _6m, _9m, _12m, _15m} scalars relative to lv_idx."""
+    return {f"_{n}m": scalar_at(arr, lv_idx - n) if lv_idx >= n else None
+            for n in SNAP_LAGS}
 
 
 def arr_to_list(arr, rd=6):
@@ -211,11 +221,12 @@ def fit_hp_log_share(log_shr: np.ndarray):
 
 
 # ── Pre-compute all series ─────────────────────────────────────────────────────
-print("Computing detrended series for all industries (5 denominator options)…")
+print("Computing detrended series for all industries (6 denominator options)…")
 
 # results[sid] = {
 #   ev, log_lvl, trend_ll, resid_ll,          ← level (option-independent)
-#   opts: {1: {sv, trend_ls, resid_ls, trend_rs, resid_rs, denom_id}, ...}
+#   opts: {1..6: {sv, trend_ls, resid_ls, trend_rs, resid_rs,
+#                  trend_hp, resid_hp, denom_id}, ...}
 # }
 results = {}
 
@@ -230,8 +241,8 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
     trend_ll, resid_ll = fit_log_linear(log_lvl)
 
     opts = {}
-    for opt in range(1, 6):
-        denom_id = mrow[f"denominator_opt{opt}"]
+    for opt in range(1, 7):
+        denom_id = DENOM_OPT6_ID if opt == 6 else mrow[f"denominator_opt{opt}"]
         dv = emp[denom_id].reindex(all_dates).values.astype(float) if denom_id in emp.columns else np.full(n_dates, np.nan)
         with np.errstate(invalid="ignore", divide="ignore"):
             sv      = np.where((ev > 0) & (dv > 0), ev / dv, np.nan)
@@ -279,14 +290,14 @@ for _, mrow in mapping.iterrows():
     r = results[sid]
 
     # Level snapshots (option-independent)
-    resid_ll_np = r["resid_ll"]
-    lv_ll = last_valid_idx_np(resid_ll_np)
-    dev_log_level_6m    = scalar_at(resid_ll_np, lv_ll - 6) if lv_ll >= 6 else None
-    dev_log_level_covid = peak_covid_scalar(resid_ll_np, covid_idxs)
+    resid_ll_np  = r["resid_ll"]
+    lv_ll        = last_valid_idx_np(resid_ll_np)
+    ll_snaps     = lag_snapshots(resid_ll_np, lv_ll)
+    ll_covid     = peak_covid_scalar(resid_ll_np, covid_idxs)
 
     # Build per-option summary for the table
     opts_summary = {}
-    for opt in range(1, 6):
+    for opt in range(1, 7):
         o       = r["opts"][opt]
         sv_ser  = pd.Series(o["sv"], index=all_dates)
         s_drop  = sv_ser.dropna()
@@ -297,23 +308,26 @@ for _, mrow in mapping.iterrows():
         resid_hp_np = o["resid_hp"]
         resid_rs_np = o["resid_rs"]
 
-        lv_ls = last_valid_idx_np(resid_ls_np)
-        lv_hp = last_valid_idx_np(resid_hp_np)
-        lv_rs = last_valid_idx_np(resid_rs_np)
+        ls_snaps = lag_snapshots(resid_ls_np, last_valid_idx_np(resid_ls_np))
+        hp_snaps = lag_snapshots(resid_hp_np, last_valid_idx_np(resid_hp_np))
+        rs_snaps = lag_snapshots(resid_rs_np, last_valid_idx_np(resid_rs_np))
 
         opts_summary[str(opt)] = {
-            "share":                   share_val,
-            "share_pct":               share_pct,
-            "dev_log_share":           last_nonnan3(resid_ls_np),
-            "dev_log_share_6m":        scalar_at(resid_ls_np, lv_ls - 6) if lv_ls >= 6 else None,
-            "dev_log_share_covid":     peak_covid_scalar(resid_ls_np, covid_idxs),
-            "dev_raw_share_pct":       last_nonnan3(resid_rs_np),
-            "dev_raw_share_pct_6m":    scalar_at(resid_rs_np, lv_rs - 6) if lv_rs >= 6 else None,
-            "dev_raw_share_pct_covid": peak_covid_scalar(resid_rs_np, covid_idxs),
+            "share":       share_val,
+            "share_pct":   share_pct,
+            "denom_name":  id_to_name.get(o["denom_id"], ""),
+            # log-linear share — current + lags + covid
+            "dev_log_share":        last_nonnan3(resid_ls_np),
+            **{f"dev_log_share{k}":        ls_snaps[k] for k in ls_snaps},
+            "dev_log_share_covid":  peak_covid_scalar(resid_ls_np, covid_idxs),
+            # HP filter share
             "dev_log_share_hp":        last_nonnan3(resid_hp_np),
-            "dev_log_share_hp_6m":     scalar_at(resid_hp_np, lv_hp - 6) if lv_hp >= 6 else None,
+            **{f"dev_log_share_hp{k}":     hp_snaps[k] for k in hp_snaps},
             "dev_log_share_hp_covid":  peak_covid_scalar(resid_hp_np, covid_idxs),
-            "denom_name":              id_to_name.get(o["denom_id"], ""),
+            # raw-linear share
+            "dev_raw_share_pct":        last_nonnan3(resid_rs_np),
+            **{f"dev_raw_share_pct{k}":    rs_snaps[k] for k in rs_snaps},
+            "dev_raw_share_pct_covid":  peak_covid_scalar(resid_rs_np, covid_idxs),
         }
 
     rows.append({
@@ -325,8 +339,8 @@ for _, mrow in mapping.iterrows():
         "emp_prev":            emp_prev,
         "emp_prev_label":      prev_lbl,
         "dev_log_level":       last_nonnan3(r["resid_ll"]),
-        "dev_log_level_6m":    dev_log_level_6m,
-        "dev_log_level_covid": dev_log_level_covid,
+        **{f"dev_log_level{k}": ll_snaps[k] for k in ll_snaps},
+        "dev_log_level_covid": ll_covid,
         "opts":                opts_summary,
     })
 
@@ -355,9 +369,9 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
     with np.errstate(invalid="ignore", divide="ignore"):
         trend_ll_impl = np.where(~np.isnan(trend_ll), np.exp(trend_ll), np.nan)
 
-    # Per-option share data for charts 3–6
+    # Per-option share data for charts 3–8 (6 denom options)
     options_json = {}
-    for opt in range(1, 6):
+    for opt in range(1, 7):
         o        = r["opts"][opt]
         sv       = o["sv"]
         t_ls     = o["trend_ls"]
@@ -408,15 +422,13 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
                 "log_level": r["log_lvl"], "trend_log_level": trend_ll,
                 "predicted_level": trend_ll_impl, "resid_log_level": resid_ll}
 
-    for opt in range(1, 6):
+    for opt in range(1, 7):
         o = r["opts"][opt]
         denom_id = o["denom_id"]
         dv = emp[denom_id].reindex(all_dates).values.astype(float) if denom_id in emp.columns else np.full(n_dates, np.nan)
         with np.errstate(invalid="ignore", divide="ignore"):
             log_shr = np.where(o["sv"] > 0, np.log(o["sv"]), np.nan)
             pred_ls = np.where(~np.isnan(o["trend_ls"]), np.exp(o["trend_ls"]), np.nan)
-
-        with np.errstate(invalid="ignore", divide="ignore"):
             pred_hp = np.where(~np.isnan(o["trend_hp"]), np.exp(o["trend_hp"]) * 100, np.nan)
 
         rows_csv[f"share_opt{opt}"]               = o["sv"]
@@ -438,7 +450,7 @@ for loop_i, (_, mrow) in enumerate(mapping.iterrows()):
         f.write(f"# Parent series: {parent_name} ({parent_sid})\n")
         f.write(f"# Generated: {today_str}\n")
         f.write("# Denominator options:\n")
-        for opt in range(1, 6):
+        for opt in range(1, 7):
             f.write(f"#   opt{opt}: {OPT_LABELS[opt]} = {id_to_name.get(results[sid]['opts'][opt]['denom_id'], '?')}\n")
         export_df.to_csv(f, index=False)
 

@@ -9,11 +9,11 @@
 </div>
 
 <p class="text-muted small mb-3">
-  Industries categorized by whether employment share/level is above or below trend, and whether the deviation is increasing or decreasing (vs. 6 months ago).
+  Industries categorized by whether employment share/level is above or below trend, and whether the deviation is increasing or decreasing over the selected window.
 </p>
 
 <!-- Controls bar -->
-<div class="d-flex gap-3 align-items-center mb-3 flex-wrap">
+<div class="d-flex gap-3 align-items-center mb-2 flex-wrap">
   <div class="d-flex align-items-center gap-2">
     <label class="fw-semibold small mb-0" for="set-select">Industry set:</label>
     <select id="set-select" class="form-select form-select-sm" style="width:auto">
@@ -31,6 +31,7 @@
       <option value="3">Level 2 parent</option>
       <option value="4" selected>Goods/Service-providing total</option>
       <option value="5">Total private / Total government</option>
+      <option value="6">Total nonfarm</option>
     </select>
   </div>
   <div class="d-flex align-items-center gap-2">
@@ -42,109 +43,118 @@
       <option value="4">Linear trend (share, %)</option>
     </select>
   </div>
+  <div class="d-flex align-items-center gap-2">
+    <label class="fw-semibold small mb-0" for="window-select">Trend window:</label>
+    <select id="window-select" class="form-select form-select-sm" style="width:auto">
+      <option value="1">1 month</option>
+      <option value="3">3 months</option>
+      <option value="6" selected>6 months</option>
+    </select>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <label class="fw-semibold small mb-0">2nd Deriv. ref:</label>
+    <div class="btn-group btn-group-sm" role="group">
+      <input type="radio" class="btn-check" name="deriv" id="deriv-A" value="A" checked>
+      <label class="btn btn-outline-secondary" for="deriv-A">A (t−12)</label>
+      <input type="radio" class="btn-check" name="deriv" id="deriv-B" value="B">
+      <label class="btn btn-outline-secondary" for="deriv-B">B (t−6)</label>
+    </div>
+  </div>
+</div>
+
+<!-- Pattern filter -->
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+  <span class="fw-semibold small">Pattern filter:</span>
+  <div id="pattern-filter" class="d-flex gap-1 flex-wrap">
+    <button class="btn btn-sm pattern-btn active" data-pattern="Rising, faster" style="background:#2563eb;color:#fff;border-color:#2563eb">Rising, faster</button>
+    <button class="btn btn-sm pattern-btn active" data-pattern="Rising, slower" style="background:#93c5fd;color:#1e3a5f;border-color:#93c5fd">Rising, slower</button>
+    <button class="btn btn-sm pattern-btn active" data-pattern="Falling, slower" style="background:#fed7aa;color:#7c2d12;border-color:#fed7aa">Falling, slower</button>
+    <button class="btn btn-sm pattern-btn active" data-pattern="Falling, faster" style="background:#dc2626;color:#fff;border-color:#dc2626">Falling, faster</button>
+    <button class="btn btn-sm pattern-btn active" data-pattern="Reversal up" style="background:#15803d;color:#fff;border-color:#15803d">Reversal up</button>
+    <button class="btn btn-sm pattern-btn active" data-pattern="Reversal down" style="background:#7f1d1d;color:#fff;border-color:#7f1d1d">Reversal down</button>
+    <button class="btn btn-sm btn-outline-secondary ms-2" id="pattern-all">All</button>
+    <button class="btn btn-sm btn-outline-secondary" id="pattern-none">None</button>
+  </div>
 </div>
 
 <!-- Summary bar -->
 <div id="summary-bar" class="d-flex gap-3 mb-3 small flex-wrap">
-  <a href="#sec-above-up" class="text-decoration-none">Above ↑: <span id="cnt-above-up" class="fw-bold">0</span></a>
+  <a href="#sec-above-up"   class="text-decoration-none">Above ↑: <span id="cnt-above-up"   class="fw-bold">0</span></a>
   <a href="#sec-above-down" class="text-decoration-none">Above ↓: <span id="cnt-above-down" class="fw-bold">0</span></a>
-  <a href="#sec-below-up" class="text-decoration-none">Below ↑: <span id="cnt-below-up" class="fw-bold">0</span></a>
+  <a href="#sec-below-up"   class="text-decoration-none">Below ↑: <span id="cnt-below-up"   class="fw-bold">0</span></a>
   <a href="#sec-below-down" class="text-decoration-none">Below ↓: <span id="cnt-below-down" class="fw-bold">0</span></a>
   <span class="text-muted">No data: <span id="cnt-nodata">0</span></span>
   <span class="text-muted">Total: <span id="cnt-total">0</span></span>
 </div>
 
-<!-- ── Section: Above trend, increasing ─────────────────────────────────── -->
-<div class="mb-4" id="sec-above-up">
+<!-- ── Sections ────────────────────────────────────────────────────────────── -->
+{% for sec_id, title, badge_cls in [
+    ("above-up",   "▲ Above trend, increasing deviation", "bg-danger"),
+    ("above-down", "▲ Above trend, decreasing deviation", "bg-success"),
+    ("below-up",   "▼ Below trend, increasing deviation", "bg-success"),
+    ("below-down", "▼ Below trend, decreasing deviation", "bg-danger"),
+    ("nodata",     "Insufficient data",                   "bg-secondary"),
+] %}
+<div class="mb-4" id="sec-{{ sec_id }}">
   <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
-          data-bs-toggle="collapse" data-bs-target="#body-above-up" type="button">
-    ▲ Above trend, increasing deviation
-    <span class="badge bg-danger ms-2" id="badge-above-up">0</span>
+          data-bs-toggle="collapse" data-bs-target="#body-{{ sec_id }}" type="button">
+    {{ title }}
+    <span class="badge {{ badge_cls }} ms-2 count-badge" id="badge-{{ sec_id }}">0</span>
   </button>
-  <div class="collapse show" id="body-above-up">
+  <div class="collapse show" id="body-{{ sec_id }}">
     <div class="table-responsive">
       <table class="table table-sm table-bordered mb-0 small">
-        <thead id="thead-above-up"></thead>
-        <tbody id="tbody-above-up"></tbody>
+        <thead id="thead-{{ sec_id }}"></thead>
+        <tbody id="tbody-{{ sec_id }}"></tbody>
       </table>
     </div>
   </div>
 </div>
-
-<!-- ── Section: Above trend, decreasing ─────────────────────────────────── -->
-<div class="mb-4" id="sec-above-down">
-  <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
-          data-bs-toggle="collapse" data-bs-target="#body-above-down" type="button">
-    ▲ Above trend, decreasing deviation
-    <span class="badge bg-success ms-2" id="badge-above-down">0</span>
-  </button>
-  <div class="collapse show" id="body-above-down">
-    <div class="table-responsive">
-      <table class="table table-sm table-bordered mb-0 small">
-        <thead id="thead-above-down"></thead>
-        <tbody id="tbody-above-down"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ── Section: Below trend, increasing ─────────────────────────────────── -->
-<div class="mb-4" id="sec-below-up">
-  <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
-          data-bs-toggle="collapse" data-bs-target="#body-below-up" type="button">
-    ▼ Below trend, increasing deviation
-    <span class="badge bg-success ms-2" id="badge-below-up">0</span>
-  </button>
-  <div class="collapse show" id="body-below-up">
-    <div class="table-responsive">
-      <table class="table table-sm table-bordered mb-0 small">
-        <thead id="thead-below-up"></thead>
-        <tbody id="tbody-below-up"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ── Section: Below trend, decreasing ─────────────────────────────────── -->
-<div class="mb-4" id="sec-below-down">
-  <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
-          data-bs-toggle="collapse" data-bs-target="#body-below-down" type="button">
-    ▼ Below trend, decreasing deviation
-    <span class="badge bg-danger ms-2" id="badge-below-down">0</span>
-  </button>
-  <div class="collapse show" id="body-below-down">
-    <div class="table-responsive">
-      <table class="table table-sm table-bordered mb-0 small">
-        <thead id="thead-below-down"></thead>
-        <tbody id="tbody-below-down"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ── Section: No data ──────────────────────────────────────────────────── -->
-<div class="mb-4" id="sec-nodata">
-  <button class="btn btn-sm w-100 text-start analysis-section-header text-muted py-2 px-3"
-          data-bs-toggle="collapse" data-bs-target="#body-nodata" type="button">
-    Insufficient data
-    <span class="badge bg-secondary ms-2" id="badge-nodata">0</span>
-  </button>
-  <div class="collapse" id="body-nodata">
-    <div class="table-responsive">
-      <table class="table table-sm table-bordered mb-0 small">
-        <thead id="thead-nodata"></thead>
-        <tbody id="tbody-nodata"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
+{% endfor %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 const ALL_ROWS   = {{ rows | tojson }};
 const LAST_LABEL = {{ last_label | tojson }};
-const OPT_LABELS = {{ opt_labels | tojson }};
+
+// ── Pattern definitions ────────────────────────────────────────────────────
+const PATTERNS = ["Rising, faster","Rising, slower","Falling, slower","Falling, faster","Reversal up","Reversal down"];
+const PATTERN_STYLE = {
+  "Rising, faster": { bg:"#2563eb", color:"#fff" },
+  "Rising, slower": { bg:"#93c5fd", color:"#1e3a5f" },
+  "Falling, slower":{ bg:"#fed7aa", color:"#7c2d12" },
+  "Falling, faster":{ bg:"#dc2626", color:"#fff" },
+  "Reversal up":    { bg:"#15803d", color:"#fff" },
+  "Reversal down":  { bg:"#7f1d1d", color:"#fff" },
+};
+
+// ── Active patterns (filter) ───────────────────────────────────────────────
+let activePatterns = new Set(PATTERNS);
+
+document.querySelectorAll(".pattern-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.pattern;
+    if (activePatterns.has(p)) {
+      activePatterns.delete(p);
+      btn.style.opacity = "0.35";
+    } else {
+      activePatterns.add(p);
+      btn.style.opacity = "1";
+    }
+    pushParams(); renderAnalysis();
+  });
+});
+document.getElementById("pattern-all").addEventListener("click", () => {
+  activePatterns = new Set(PATTERNS);
+  document.querySelectorAll(".pattern-btn").forEach(b => b.style.opacity = "1");
+  pushParams(); renderAnalysis();
+});
+document.getElementById("pattern-none").addEventListener("click", () => {
+  activePatterns = new Set();
+  document.querySelectorAll(".pattern-btn").forEach(b => b.style.opacity = "0.35");
+  pushParams(); renderAnalysis();
+});
 
 // ── Deviation accessors ────────────────────────────────────────────────────
 function getDevNow(row, method, opt) {
@@ -155,83 +165,102 @@ function getDevNow(row, method, opt) {
   if (method === 4) return o.dev_raw_share_pct;
   return null;
 }
-function getDev6m(row, method, opt) {
-  if (method === 3) return row.dev_log_level_6m;
+
+function getDevAtLag(row, method, opt, lag) {
+  const s = `_${lag}m`;
+  if (method === 3) return row[`dev_log_level${s}`] ?? null;
   const o = (row.opts || {})[String(opt)] || {};
-  if (method === 1) return o.dev_log_share_6m;
-  if (method === 2) return o.dev_log_share_hp_6m;
-  if (method === 4) return o.dev_raw_share_pct_6m;
+  if (method === 1) return o[`dev_log_share${s}`] ?? null;
+  if (method === 2) return o[`dev_log_share_hp${s}`] ?? null;
+  if (method === 4) return o[`dev_raw_share_pct${s}`] ?? null;
   return null;
 }
+
 function getDevCovid(row, method, opt) {
-  if (method === 3) return row.dev_log_level_covid;
+  if (method === 3) return row.dev_log_level_covid ?? null;
   const o = (row.opts || {})[String(opt)] || {};
-  if (method === 1) return o.dev_log_share_covid;
-  if (method === 2) return o.dev_log_share_hp_covid;
-  if (method === 4) return o.dev_raw_share_pct_covid;
+  if (method === 1) return o.dev_log_share_covid ?? null;
+  if (method === 2) return o.dev_log_share_hp_covid ?? null;
+  if (method === 4) return o.dev_raw_share_pct_covid ?? null;
+  return null;
+}
+
+// ── Second derivative ──────────────────────────────────────────────────────
+function computeDerivs(row, method, opt, derivRef) {
+  const devNow = getDevNow(row, method, opt);
+  const d3     = getDevAtLag(row, method, opt, 3);
+  const recentChange = (devNow != null && d3 != null) ? devNow - d3 : null;
+
+  let pastChange = null;
+  if (derivRef === "A") {
+    const d12 = getDevAtLag(row, method, opt, 12);
+    const d15 = getDevAtLag(row, method, opt, 15);
+    pastChange = (d12 != null && d15 != null) ? d12 - d15 : null;
+  } else {
+    const d6 = getDevAtLag(row, method, opt, 6);
+    const d9 = getDevAtLag(row, method, opt, 9);
+    pastChange = (d6 != null && d9 != null) ? d6 - d9 : null;
+  }
+
+  const secondDeriv = (recentChange != null && pastChange != null)
+    ? recentChange - pastChange : null;
+  return { recentChange, pastChange, secondDeriv };
+}
+
+function getPattern(recentChange, pastChange, secondDeriv) {
+  if (recentChange == null || pastChange == null || secondDeriv == null) return null;
+  if (recentChange > 0 && pastChange < 0) return "Reversal up";
+  if (recentChange < 0 && pastChange > 0) return "Reversal down";
+  if (recentChange > 0 && pastChange > 0 && secondDeriv > 0) return "Rising, faster";
+  if (recentChange > 0 && pastChange > 0 && secondDeriv < 0) return "Rising, slower";
+  if (recentChange < 0 && pastChange < 0 && secondDeriv > 0) return "Falling, slower";
+  if (recentChange < 0 && pastChange < 0 && secondDeriv < 0) return "Falling, faster";
   return null;
 }
 
 // ── Categorize ────────────────────────────────────────────────────────────
-function categorize(rows, setVal, denom, method) {
+function categorize(rows, setVal, denom, method, window, derivRef) {
   const maxLevel = setVal === 0 ? 99 : setVal;
   const filtered = rows.filter(r => r.display_level <= maxLevel);
 
-  const buckets = {
-    above_up:   [],
-    above_down: [],
-    below_up:   [],
-    below_down: [],
-    nodata:     [],
-  };
+  const buckets = { "above-up":[], "above-down":[], "below-up":[], "below-down":[], nodata:[] };
 
   for (const row of filtered) {
-    const dev      = getDevNow(row, method, denom);
-    const dev6m    = getDev6m(row, method, denom);
-    const devCovid = getDevCovid(row, method, denom);
-    const direction = (dev != null && dev6m != null) ? dev - dev6m : null;
+    const dev       = getDevNow(row, method, denom);
+    const devPast   = getDevAtLag(row, method, denom, window);
+    const devCovid  = getDevCovid(row, method, denom);
+    const direction = (dev != null && devPast != null) ? dev - devPast : null;
+    const { recentChange, pastChange, secondDeriv } = computeDerivs(row, method, denom, derivRef);
+    const pattern = getPattern(recentChange, pastChange, secondDeriv);
 
     if (dev == null || direction == null) {
-      buckets.nodata.push({ row, dev, direction, devCovid });
+      buckets.nodata.push({ row, dev, direction, devCovid, recentChange, pastChange, secondDeriv, pattern });
       continue;
     }
-
-    const above     = dev > 0;
+    const above      = dev > 0;
     const increasing = direction > 0;
-    const key = `${above ? "above" : "below"}_${increasing ? "up" : "down"}`;
-    buckets[key].push({ row, dev, direction, devCovid });
+    const key = `${above ? "above" : "below"}-${increasing ? "up" : "down"}`;
+    buckets[key].push({ row, dev, direction, devCovid, recentChange, pastChange, secondDeriv, pattern });
   }
   return buckets;
 }
 
 // ── Sort state per section ─────────────────────────────────────────────────
-// { col: "dev"|"dir"|"covid"|null, asc: bool }
+const SECTIONS = ["above-up","above-down","below-up","below-down","nodata"];
 const sortStates = {};
-const SECTIONS = ["above-up", "above-down", "below-up", "below-down", "nodata"];
-
-function defaultSortState() {
-  return { col: "dev", asc: false };  // abs(dev) descending
-}
-
-SECTIONS.forEach(s => { sortStates[s] = defaultSortState(); });
+SECTIONS.forEach(s => { sortStates[s] = { col:"dev", asc:false }; });
 
 function sortEntries(entries, state) {
   const copy = entries.slice();
   copy.sort((a, b) => {
     let av, bv;
-    if (state.col === "dev") {
-      av = a.dev != null ? Math.abs(a.dev) : null;
-      bv = b.dev != null ? Math.abs(b.dev) : null;
-    } else if (state.col === "dir") {
-      av = a.direction;
-      bv = b.direction;
-    } else if (state.col === "covid") {
-      // Change from COVID = dev - devCovid
-      av = (a.dev != null && a.devCovid != null) ? a.dev - a.devCovid : null;
-      bv = (b.dev != null && b.devCovid != null) ? b.dev - b.devCovid : null;
-    } else {
-      return 0;
-    }
+    if      (state.col === "dev")    { av = a.dev    != null ? Math.abs(a.dev)    : null; bv = b.dev    != null ? Math.abs(b.dev)    : null; }
+    else if (state.col === "dir")    { av = a.direction;   bv = b.direction; }
+    else if (state.col === "covid")  { av = (a.dev != null && a.devCovid != null) ? a.dev - a.devCovid : null; bv = (b.dev != null && b.devCovid != null) ? b.dev - b.devCovid : null; }
+    else if (state.col === "recent") { av = a.recentChange; bv = b.recentChange; }
+    else if (state.col === "past")   { av = a.pastChange;   bv = b.pastChange; }
+    else if (state.col === "d2")     { av = a.secondDeriv;  bv = b.secondDeriv; }
+    else return 0;
     if (av === null && bv === null) return 0;
     if (av === null) return 1;
     if (bv === null) return -1;
@@ -240,25 +269,19 @@ function sortEntries(entries, state) {
   return copy;
 }
 
-// ── Render helpers ─────────────────────────────────────────────────────────
-function devUnits(method) {
-  return method === 4 ? "Deviation (ppt)" : "Deviation (log diff)";
-}
-
-function fmtDev(v, method) {
+// ── Formatting helpers ─────────────────────────────────────────────────────
+function fmtDev(v, method, dp) {
   if (v == null) return '<span class="text-muted">—</span>';
-  const dp   = method === 4 ? 3 : 4;
-  const cls  = v > 0 ? "text-success" : v < 0 ? "text-danger" : "";
-  return `<span class="${cls}">${v.toFixed(dp)}</span>`;
+  const d   = dp ?? (method === 4 ? 3 : 4);
+  const cls = v > 0 ? "text-success" : v < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${v.toFixed(d)}</span>`;
 }
 
 function fmtChange(v, method, above) {
-  // v = direction (dev - dev6m); above = whether dev > 0
   if (v == null) return '<span class="text-muted">—</span>';
-  const dp = method === 4 ? 3 : 4;
-  // converging = moving toward 0
+  const dp  = method === 4 ? 3 : 4;
   const converging = above ? v < 0 : v > 0;
-  const cls = converging ? "text-pos" : (v !== 0 ? "text-neg" : "");
+  const cls = v === 0 ? "" : (converging ? "text-pos" : "text-neg");
   return `<span class="${cls}">${v >= 0 ? "+" : ""}${v.toFixed(dp)}</span>`;
 }
 
@@ -270,44 +293,56 @@ function fmtCovidChange(dev, devCovid, method) {
   return `<span class="${cls}">${diff >= 0 ? "+" : ""}${diff.toFixed(dp)}</span>`;
 }
 
-function makeTheadHtml(secId, method, denom, showDenom) {
-  const state = sortStates[secId];
-  function icon(col) {
-    if (state.col !== col) return '<span class="text-secondary">⇅</span>';
-    return state.asc ? '↑' : '↓';
+function fmtD2(v) {
+  if (v == null) return '<span class="text-muted">—</span>';
+  const cls = v > 0 ? "text-success" : v < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${v >= 0 ? "+" : ""}${v.toFixed(3)}</span>`;
+}
+
+function patternBadge(pattern) {
+  if (!pattern) return "";
+  const s = PATTERN_STYLE[pattern] || {};
+  return `<span class="badge" style="background:${s.bg};color:${s.color};font-size:0.7em">${pattern}</span>`;
+}
+
+function devUnits(method) {
+  return method === 4 ? "Deviation (ppt)" : "Deviation (log diff)";
+}
+
+// ── Thead builder ─────────────────────────────────────────────────────────
+function makeTheadHtml(secId, method, window, derivRef, showDenom) {
+  const st = sortStates[secId];
+  function ico(col) {
+    return st.col === col ? (st.asc ? "↑" : "↓") : '<span class="text-secondary">⇅</span>';
   }
-  const denomCol = showDenom
-    ? `<th class="text-muted">Denominator</th>`
-    : "";
+  const pastLabel = derivRef === "A" ? "Past 3M Δ (t−12)" : "Past 3M Δ (t−6)";
+  const denomCol  = showDenom ? `<th class="text-muted">Denominator</th>` : "";
   return `<tr class="text-center align-middle">
-    <th class="text-start" style="min-width:220px">Industry</th>
-    <th>Level</th>
-    <th>${LAST_LABEL}<br><small class="text-muted">(000s)</small></th>
+    <th class="text-start" style="min-width:200px">Industry</th>
+    <th>Lvl</th>
+    <th>${LAST_LABEL}<br><small>(000s)</small></th>
     <th>Share</th>
-    <th class="sortable" data-sec="${secId}" data-col="dev" style="cursor:pointer">
-      ${devUnits(method)} ${icon("dev")}
-    </th>
-    <th class="sortable" data-sec="${secId}" data-col="dir" style="cursor:pointer">
-      6-mo change ${icon("dir")}
-    </th>
-    <th class="sortable" data-sec="${secId}" data-col="covid" style="cursor:pointer">
-      Change from COVID ${icon("covid")}
-    </th>
+    <th class="sortable" data-sec="${secId}" data-col="dev">${devUnits(method)} ${ico("dev")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="dir">${window}-mo change ${ico("dir")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="covid">Δ from COVID ${ico("covid")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="recent">Recent 3M Δ ${ico("recent")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="past">${pastLabel} ${ico("past")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="d2">2nd Deriv. ${ico("d2")}</th>
+    <th>Pattern</th>
     ${denomCol}
   </tr>`;
 }
 
-function makeRowHtml(entry, method, denom, above, showDenom) {
-  const { row, dev, direction, devCovid } = entry;
-  const opt  = (row.opts || {})[String(denom)] || {};
-  const share = opt.share != null ? (opt.share * 100).toFixed(2) + "%" : "—";
-  const emp   = row.emp_recent != null ? row.emp_recent.toLocaleString(undefined, {maximumFractionDigits:1}) : "—";
-  // Build industry link: /{series_id}/?denom=N&method=M
+// ── Row builder ───────────────────────────────────────────────────────────
+function makeRowHtml(entry, method, denom, above, showDenom, window) {
+  const { row, dev, direction, devCovid, recentChange, pastChange, secondDeriv, pattern } = entry;
+  const opt    = (row.opts || {})[String(denom)] || {};
+  const share  = opt.share != null ? (opt.share * 100).toFixed(2) + "%" : "—";
+  const emp    = row.emp_recent != null ? row.emp_recent.toLocaleString(undefined,{maximumFractionDigits:1}) : "—";
   const params = new URLSearchParams({ denom, method });
-  const href = `../${row.series_id}/?${params}`;
+  const href   = `../${row.series_id}/?${params}`;
   const denomCell = showDenom
-    ? `<td class="text-muted small">${method !== 3 ? (opt.denom_name || "—") : "—"}</td>`
-    : "";
+    ? `<td class="text-muted small">${method !== 3 ? (opt.denom_name || "—") : "—"}</td>` : "";
   return `<tr>
     <td><a href="${href}" class="text-decoration-none industry-link">${row.industry_name}</a></td>
     <td class="text-center">${row.display_level}</td>
@@ -316,6 +351,10 @@ function makeRowHtml(entry, method, denom, above, showDenom) {
     <td class="text-end">${fmtDev(dev, method)}</td>
     <td class="text-end">${fmtChange(direction, method, above)}</td>
     <td class="text-end">${fmtCovidChange(dev, devCovid, method)}</td>
+    <td class="text-end">${fmtDev(recentChange, method, 3)}</td>
+    <td class="text-end">${fmtDev(pastChange, method, 3)}</td>
+    <td class="text-end">${fmtD2(secondDeriv)}</td>
+    <td>${patternBadge(pattern)}</td>
     ${denomCell}
   </tr>`;
 }
@@ -323,143 +362,176 @@ function makeRowHtml(entry, method, denom, above, showDenom) {
 function makeNodataRowHtml(entry, method, denom, showDenom) {
   const { row } = entry;
   const href = `../${row.series_id}/?denom=${denom}&method=${method}`;
+  const blank = '<span class="text-muted">—</span>';
   const denomCell = showDenom ? `<td class="text-muted small">—</td>` : "";
   return `<tr class="text-muted">
     <td><a href="${href}" class="text-decoration-none">${row.industry_name}</a></td>
     <td class="text-center">${row.display_level}</td>
-    <td class="text-end">—</td>
-    <td class="text-end">—</td>
-    <td class="text-end">—</td>
-    <td class="text-end">—</td>
-    <td class="text-end">—</td>
+    <td>${blank}</td><td>${blank}</td><td>${blank}</td>
+    <td>${blank}</td><td>${blank}</td><td>${blank}</td>
+    <td>${blank}</td><td>${blank}</td><td></td>
     ${denomCell}
   </tr>`;
 }
 
-// ── Render analysis ────────────────────────────────────────────────────────
+// ── Render ─────────────────────────────────────────────────────────────────
 let currentBuckets = {};
 
-function renderAnalysis(setVal, denom, method) {
-  const buckets = categorize(ALL_ROWS, setVal, denom, method);
-  currentBuckets = buckets;
-
-  const SEC_KEYS = [
-    { key: "above_up",   secId: "above-up",   above: true },
-    { key: "above_down", secId: "above-down",  above: true },
-    { key: "below_up",   secId: "below-up",    above: false },
-    { key: "below_down", secId: "below-down",  above: false },
-    { key: "nodata",     secId: "nodata",       above: null },
-  ];
-
+function renderAnalysis() {
+  const setVal   = currentSet;
+  const denom    = currentDenom;
+  const method   = currentMethod;
+  const window   = currentWindow;
+  const derivRef = currentDeriv;
   const showDenom = method !== 3;
 
-  for (const { key, secId, above } of SEC_KEYS) {
-    const state   = sortStates[secId];
-    const entries = sortEntries(buckets[key], state);
-    const count   = entries.length;
+  const buckets = categorize(ALL_ROWS, setVal, denom, method, window, derivRef);
+  currentBuckets = buckets;
 
-    document.getElementById(`cnt-${secId}`)?.setAttribute && null;
+  const SEC_MAP = [
+    { key:"above-up",   secId:"above-up",   above:true  },
+    { key:"above-down", secId:"above-down",  above:true  },
+    { key:"below-up",   secId:"below-up",    above:false },
+    { key:"below-down", secId:"below-down",  above:false },
+    { key:"nodata",     secId:"nodata",       above:null  },
+  ];
+
+  let totalShown = 0;
+
+  for (const { key, secId, above } of SEC_MAP) {
+    const state   = sortStates[secId];
+    const all     = sortEntries(buckets[key], state);
+    // Apply pattern filter (nodata section unfiltered)
+    const entries = key === "nodata" ? all : all.filter(e => {
+      if (activePatterns.size === PATTERNS.length) return true; // all active
+      return activePatterns.has(e.pattern) || (e.pattern == null && activePatterns.size === 0);
+    });
+    // For counts in header: show "X of Y" when filter active
+    const total   = all.length;
+    const shown   = entries.length;
+    totalShown   += shown;
+
     const badge = document.getElementById(`badge-${secId}`);
-    if (badge) badge.textContent = count;
+    if (badge) badge.textContent = activePatterns.size < PATTERNS.length && key !== "nodata"
+      ? `${shown} of ${total}` : total;
 
     const thead = document.getElementById(`thead-${secId}`);
-    if (thead) thead.innerHTML = makeTheadHtml(secId, method, denom, showDenom);
+    if (thead) thead.innerHTML = makeTheadHtml(secId, method, window, derivRef, showDenom);
 
     const tbody = document.getElementById(`tbody-${secId}`);
     if (tbody) {
-      if (key === "nodata") {
-        tbody.innerHTML = entries.map(e => makeNodataRowHtml(e, method, denom, showDenom)).join("");
-      } else {
-        tbody.innerHTML = entries.map(e => makeRowHtml(e, method, denom, above, showDenom)).join("");
-      }
+      tbody.innerHTML = key === "nodata"
+        ? entries.map(e => makeNodataRowHtml(e, method, denom, showDenom)).join("")
+        : entries.map(e => makeRowHtml(e, method, denom, above, showDenom, window)).join("");
     }
 
     // Re-attach sort listeners
-    const thead2 = document.getElementById(`thead-${secId}`);
-    if (thead2) {
-      thead2.querySelectorAll("th.sortable").forEach(th => {
-        th.addEventListener("click", () => {
-          const col = th.dataset.col;
-          const st  = sortStates[secId];
-          if (st.col === col) {
-            st.asc = !st.asc;
-          } else {
-            sortStates[secId] = { col, asc: false };
-          }
-          renderAnalysis(currentSet, currentDenom, currentMethod);
-        });
+    document.getElementById(`thead-${secId}`)?.querySelectorAll("th.sortable").forEach(th => {
+      th.addEventListener("click", () => {
+        const col = th.dataset.col;
+        const st  = sortStates[secId];
+        sortStates[secId] = (st.col === col) ? { col, asc: !st.asc } : { col, asc: false };
+        renderAnalysis();
       });
-    }
+    });
   }
 
-  // Summary bar counts
-  document.getElementById("cnt-above-up").textContent   = buckets.above_up.length;
-  document.getElementById("cnt-above-down").textContent = buckets.above_down.length;
-  document.getElementById("cnt-below-up").textContent   = buckets.below_up.length;
-  document.getElementById("cnt-below-down").textContent = buckets.below_down.length;
+  // Summary bar
+  document.getElementById("cnt-above-up").textContent   = buckets["above-up"].length;
+  document.getElementById("cnt-above-down").textContent = buckets["above-down"].length;
+  document.getElementById("cnt-below-up").textContent   = buckets["below-up"].length;
+  document.getElementById("cnt-below-down").textContent = buckets["below-down"].length;
   document.getElementById("cnt-nodata").textContent     = buckets.nodata.length;
-  const total = Object.values(buckets).reduce((s, b) => s + b.length, 0);
-  document.getElementById("cnt-total").textContent      = total;
+  document.getElementById("cnt-total").textContent      = Object.values(buckets).reduce((s,b) => s + b.length, 0);
 }
 
 // ── URL param helpers ──────────────────────────────────────────────────────
 function getParams() {
-  const p   = new URLSearchParams(window.location.search);
-  const set = parseInt(p.get("set"))    || 4;
-  const den = parseInt(p.get("denom"))  || 4;
-  const met = parseInt(p.get("method")) || 1;
+  const p = new URLSearchParams(window.location.search);
+  const set    = parseInt(p.get("set"))    || 4;
+  const den    = parseInt(p.get("denom"))  || 4;
+  const met    = parseInt(p.get("method")) || 1;
+  const win    = parseInt(p.get("window")) || 6;
+  const deriv  = p.get("deriv") === "B" ? "B" : "A";
+  const patStr = p.get("pattern") || "";
+  const pats   = patStr ? patStr.split(",").map(s => decodeURIComponent(s.trim())).filter(s => PATTERNS.includes(s)) : null;
   return {
-    set:    [0, 2, 3, 4].includes(set) ? set : 4,
-    denom:  (den >= 1 && den <= 5)     ? den : 4,
-    method: (met >= 1 && met <= 4)     ? met : 1,
+    set:     [0,2,3,4].includes(set) ? set : 4,
+    denom:   (den >= 1 && den <= 6)   ? den : 4,
+    method:  (met >= 1 && met <= 4)   ? met : 1,
+    window:  [1,3,6].includes(win)    ? win : 6,
+    deriv,
+    patterns: pats,
   };
 }
 
-function pushParams(set, denom, method) {
+function pushParams() {
   const url = new URL(window.location);
-  url.searchParams.set("set",    set);
-  url.searchParams.set("denom",  denom);
-  url.searchParams.set("method", method);
+  url.searchParams.set("set",    currentSet);
+  url.searchParams.set("denom",  currentDenom);
+  url.searchParams.set("method", currentMethod);
+  url.searchParams.set("window", currentWindow);
+  url.searchParams.set("deriv",  currentDeriv);
+  if (activePatterns.size === PATTERNS.length) {
+    url.searchParams.delete("pattern");
+  } else {
+    url.searchParams.set("pattern", [...activePatterns].map(encodeURIComponent).join(","));
+  }
   history.pushState({}, "", url);
 }
 
-// ── Init ───────────────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────
 let currentSet    = 4;
 let currentDenom  = 4;
 let currentMethod = 1;
+let currentWindow = 6;
+let currentDeriv  = "A";
 
+// ── Init ───────────────────────────────────────────────────────────────────
 (function init() {
   const p = getParams();
   currentSet    = p.set;
   currentDenom  = p.denom;
   currentMethod = p.method;
+  currentWindow = p.window;
+  currentDeriv  = p.deriv;
+  if (p.patterns !== null) {
+    activePatterns = new Set(p.patterns);
+    document.querySelectorAll(".pattern-btn").forEach(btn => {
+      btn.style.opacity = activePatterns.has(btn.dataset.pattern) ? "1" : "0.35";
+    });
+  }
 
   document.getElementById("set-select").value    = String(currentSet);
   document.getElementById("denom-select").value  = String(currentDenom);
   document.getElementById("method-select").value = String(currentMethod);
+  document.getElementById("window-select").value = String(currentWindow);
+  document.getElementById(currentDeriv === "B" ? "deriv-B" : "deriv-A").checked = true;
 
-  renderAnalysis(currentSet, currentDenom, currentMethod);
+  renderAnalysis();
 })();
 
+function onControlChange() {
+  SECTIONS.forEach(s => { sortStates[s] = { col:"dev", asc:false }; });
+  pushParams(); renderAnalysis();
+}
+
 document.getElementById("set-select").addEventListener("change", function() {
-  currentSet = parseInt(this.value);
-  SECTIONS.forEach(s => { sortStates[s] = defaultSortState(); });
-  pushParams(currentSet, currentDenom, currentMethod);
-  renderAnalysis(currentSet, currentDenom, currentMethod);
+  currentSet = parseInt(this.value); onControlChange();
 });
-
 document.getElementById("denom-select").addEventListener("change", function() {
-  currentDenom = parseInt(this.value);
-  SECTIONS.forEach(s => { sortStates[s] = defaultSortState(); });
-  pushParams(currentSet, currentDenom, currentMethod);
-  renderAnalysis(currentSet, currentDenom, currentMethod);
+  currentDenom = parseInt(this.value); onControlChange();
 });
-
 document.getElementById("method-select").addEventListener("change", function() {
-  currentMethod = parseInt(this.value);
-  SECTIONS.forEach(s => { sortStates[s] = defaultSortState(); });
-  pushParams(currentSet, currentDenom, currentMethod);
-  renderAnalysis(currentSet, currentDenom, currentMethod);
+  currentMethod = parseInt(this.value); onControlChange();
+});
+document.getElementById("window-select").addEventListener("change", function() {
+  currentWindow = parseInt(this.value); onControlChange();
+});
+document.querySelectorAll("input[name='deriv']").forEach(r => {
+  r.addEventListener("change", function() {
+    currentDeriv = this.value; onControlChange();
+  });
 });
 </script>
 {% endblock %}

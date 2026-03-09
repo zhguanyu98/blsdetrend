@@ -109,3 +109,9 @@ th.sortable:hover {
 
 .text-pos { color: #15803d !important; }
 .text-neg { color: #b91c1c !important; }
+
+.pattern-btn {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  transition: opacity 0.15s;
+}

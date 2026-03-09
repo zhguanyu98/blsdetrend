@@ -17,6 +17,7 @@
     <option value="3">Level 2 parent</option>
     <option value="4">Goods/Service-providing total</option>
     <option value="5">Total private / Total government</option>
+    <option value="6">Total nonfarm</option>
   </select>
 </div>
 <p id="denom-desc" class="text-muted small mb-2"></p>
@@ -105,13 +106,14 @@ const OPT_DESCS = {
   "3": "Share of the closest display-level-2 parent industry (major sector, e.g., ÷ Construction).",
   "4": "Share of Goods-producing total (for goods industries) or Service-providing total (for service industries).",
   "5": "Share of Total private employment (for private industries) or Total government (for government).",
+  "6": "Share of Total nonfarm employment — all industries (private and government) on the same scale.",
 };
 
 // ── Read/write URL param ───────────────────────────────────────────────────
 function getSelectedOpt() {
   const p = new URLSearchParams(window.location.search).get("denom");
   const n = parseInt(p);
-  return (n >= 1 && n <= 5) ? String(n) : "1";
+  return (n >= 1 && n <= 6) ? String(n) : "1";
 }
 function setUrlOpt(opt) {
   const url = new URL(window.location);
