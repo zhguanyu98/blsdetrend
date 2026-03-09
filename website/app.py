@@ -42,7 +42,6 @@ def index():
 
 
 @app.route("/analysis/")
-@app.route("/analysis")
 def analysis():
     return render_template("analysis.html",
                            rows=_TABLE_DATA["rows"],
