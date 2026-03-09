@@ -78,6 +78,18 @@ def scalar_at(arr: np.ndarray, idx: int):
     return None if not np.isfinite(v) else round(v, 6)
 
 
+def peak_covid_scalar(arr: np.ndarray, idxs: list):
+    """Return the value at the month with the highest absolute deviation
+    among the given indices (Mar/Apr/May 2020). Ties broken by later month."""
+    best_val, best_abs = None, -1.0
+    for idx in idxs:
+        v = scalar_at(arr, idx)
+        if v is not None and abs(v) > best_abs:
+            best_abs = abs(v)
+            best_val = v
+    return best_val
+
+
 def arr_to_list(arr, rd=6):
     out = []
     for v in arr:
@@ -111,10 +123,8 @@ last_lbl  = month_label(all_dates[-1])
 prev_lbl  = month_label(all_dates[-2])
 today_str = date.today().strftime("%Y-%m-%d")
 
-try:
-    covid_idx = date_strs.index(MARCH2020_STR)
-except ValueError:
-    covid_idx = -1
+COVID_MONTHS = ["2020-03-01", "2020-04-01", "2020-05-01"]
+covid_idxs = [date_strs.index(m) for m in COVID_MONTHS if m in date_strs]
 
 # Look-up dicts from mapping
 id_to_name = dict(zip(mapping["series_id"], mapping["industry_name"]))
@@ -272,7 +282,7 @@ for _, mrow in mapping.iterrows():
     resid_ll_np = r["resid_ll"]
     lv_ll = last_valid_idx_np(resid_ll_np)
     dev_log_level_6m    = scalar_at(resid_ll_np, lv_ll - 6) if lv_ll >= 6 else None
-    dev_log_level_covid = scalar_at(resid_ll_np, covid_idx)
+    dev_log_level_covid = peak_covid_scalar(resid_ll_np, covid_idxs)
 
     # Build per-option summary for the table
     opts_summary = {}
@@ -296,13 +306,13 @@ for _, mrow in mapping.iterrows():
             "share_pct":               share_pct,
             "dev_log_share":           last_nonnan3(resid_ls_np),
             "dev_log_share_6m":        scalar_at(resid_ls_np, lv_ls - 6) if lv_ls >= 6 else None,
-            "dev_log_share_covid":     scalar_at(resid_ls_np, covid_idx),
+            "dev_log_share_covid":     peak_covid_scalar(resid_ls_np, covid_idxs),
             "dev_raw_share_pct":       last_nonnan3(resid_rs_np),
             "dev_raw_share_pct_6m":    scalar_at(resid_rs_np, lv_rs - 6) if lv_rs >= 6 else None,
-            "dev_raw_share_pct_covid": scalar_at(resid_rs_np, covid_idx),
+            "dev_raw_share_pct_covid": peak_covid_scalar(resid_rs_np, covid_idxs),
             "dev_log_share_hp":        last_nonnan3(resid_hp_np),
             "dev_log_share_hp_6m":     scalar_at(resid_hp_np, lv_hp - 6) if lv_hp >= 6 else None,
-            "dev_log_share_hp_covid":  scalar_at(resid_hp_np, covid_idx),
+            "dev_log_share_hp_covid":  peak_covid_scalar(resid_hp_np, covid_idxs),
             "denom_name":              id_to_name.get(o["denom_id"], ""),
         }
 
