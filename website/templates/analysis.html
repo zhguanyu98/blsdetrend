@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis — BLS Employment Analysis{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-2 gap-3 flex-wrap">
+  <h5 class="mb-0">Employment Trend Analysis — Industry Quadrants</h5>
+  <span class="badge bg-secondary">{{ rows|length }} series</span>
+</div>
+
+<p class="text-muted small mb-3">
+  Industries categorized by whether employment share/level is above or below trend, and whether the deviation is increasing or decreasing (vs. 6 months ago).
+</p>
+
+<!-- Controls bar -->
+<div class="d-flex gap-3 align-items-center mb-3 flex-wrap">
+  <div class="d-flex align-items-center gap-2">
+    <label class="fw-semibold small mb-0" for="set-select">Industry set:</label>
+    <select id="set-select" class="form-select form-select-sm" style="width:auto">
+      <option value="0">All industries</option>
+      <option value="4" selected>Level ≤ 4</option>
+      <option value="3">Level ≤ 3</option>
+      <option value="2">Level ≤ 2</option>
+    </select>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <label class="fw-semibold small mb-0" for="denom-select">Denominator:</label>
+    <select id="denom-select" class="form-select form-select-sm" style="width:auto">
+      <option value="1">Level 4 parent (default)</option>
+      <option value="2">Level 3 parent</option>
+      <option value="3">Level 2 parent</option>
+      <option value="4" selected>Goods/Service-providing total</option>
+      <option value="5">Total private / Total government</option>
+    </select>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <label class="fw-semibold small mb-0" for="method-select">Method:</label>
+    <select id="method-select" class="form-select form-select-sm" style="width:auto">
+      <option value="1" selected>Log-linear trend (share)</option>
+      <option value="2">HP filter (share)</option>
+      <option value="3">Log-linear trend (employment level)</option>
+      <option value="4">Linear trend (share, %)</option>
+    </select>
+  </div>
+</div>
+
+<!-- Summary bar -->
+<div id="summary-bar" class="d-flex gap-3 mb-3 small flex-wrap">
+  <a href="#sec-above-up" class="text-decoration-none">Above ↑: <span id="cnt-above-up" class="fw-bold">0</span></a>
+  <a href="#sec-above-down" class="text-decoration-none">Above ↓: <span id="cnt-above-down" class="fw-bold">0</span></a>
+  <a href="#sec-below-up" class="text-decoration-none">Below ↑: <span id="cnt-below-up" class="fw-bold">0</span></a>
+  <a href="#sec-below-down" class="text-decoration-none">Below ↓: <span id="cnt-below-down" class="fw-bold">0</span></a>
+  <span class="text-muted">No data: <span id="cnt-nodata">0</span></span>
+  <span class="text-muted">Total: <span id="cnt-total">0</span></span>
+</div>
+
+<!-- ── Section: Above trend, increasing ─────────────────────────────────── -->
+<div class="mb-4" id="sec-above-up">
+  <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
+          data-bs-toggle="collapse" data-bs-target="#body-above-up" type="button">
+    ▲ Above trend, increasing deviation
+    <span class="badge bg-danger ms-2" id="badge-above-up">0</span>
+  </button>
+  <div class="collapse show" id="body-above-up">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0 small">
+        <thead id="thead-above-up"></thead>
+        <tbody id="tbody-above-up"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section: Above trend, decreasing ─────────────────────────────────── -->
+<div class="mb-4" id="sec-above-down">
+  <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
+          data-bs-toggle="collapse" data-bs-target="#body-above-down" type="button">
+    ▲ Above trend, decreasing deviation
+    <span class="badge bg-success ms-2" id="badge-above-down">0</span>
+  </button>
+  <div class="collapse show" id="body-above-down">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0 small">
+        <thead id="thead-above-down"></thead>
+        <tbody id="tbody-above-down"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section: Below trend, increasing ─────────────────────────────────── -->
+<div class="mb-4" id="sec-below-up">
+  <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
+          data-bs-toggle="collapse" data-bs-target="#body-below-up" type="button">
+    ▼ Below trend, increasing deviation
+    <span class="badge bg-success ms-2" id="badge-below-up">0</span>
+  </button>
+  <div class="collapse show" id="body-below-up">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0 small">
+        <thead id="thead-below-up"></thead>
+        <tbody id="tbody-below-up"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section: Below trend, decreasing ─────────────────────────────────── -->
+<div class="mb-4" id="sec-below-down">
+  <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
+          data-bs-toggle="collapse" data-bs-target="#body-below-down" type="button">
+    ▼ Below trend, decreasing deviation
+    <span class="badge bg-danger ms-2" id="badge-below-down">0</span>
+  </button>
+  <div class="collapse show" id="body-below-down">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0 small">
+        <thead id="thead-below-down"></thead>
+        <tbody id="tbody-below-down"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section: No data ──────────────────────────────────────────────────── -->
+<div class="mb-4" id="sec-nodata">
+  <button class="btn btn-sm w-100 text-start analysis-section-header text-muted py-2 px-3"
+          data-bs-toggle="collapse" data-bs-target="#body-nodata" type="button">
+    Insufficient data
+    <span class="badge bg-secondary ms-2" id="badge-nodata">0</span>
+  </button>
+  <div class="collapse" id="body-nodata">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0 small">
+        <thead id="thead-nodata"></thead>
+        <tbody id="tbody-nodata"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ALL_ROWS   = {{ rows | tojson }};
+const LAST_LABEL = {{ last_label | tojson }};
+const OPT_LABELS = {{ opt_labels | tojson }};
+
+// ── Deviation accessors ────────────────────────────────────────────────────
+function getDevNow(row, method, opt) {
+  if (method === 3) return row.dev_log_level;
+  const o = (row.opts || {})[String(opt)] || {};
+  if (method === 1) return o.dev_log_share;
+  if (method === 2) return o.dev_log_share_hp;
+  if (method === 4) return o.dev_raw_share_pct;
+  return null;
+}
+function getDev6m(row, method, opt) {
+  if (method === 3) return row.dev_log_level_6m;
+  const o = (row.opts || {})[String(opt)] || {};
+  if (method === 1) return o.dev_log_share_6m;
+  if (method === 2) return o.dev_log_share_hp_6m;
+  if (method === 4) return o.dev_raw_share_pct_6m;
+  return null;
+}
+function getDevCovid(row, method, opt) {
+  if (method === 3) return row.dev_log_level_covid;
+  const o = (row.opts || {})[String(opt)] || {};
+  if (method === 1) return o.dev_log_share_covid;
+  if (method === 2) return o.dev_log_share_hp_covid;
+  if (method === 4) return o.dev_raw_share_pct_covid;
+  return null;
+}
+
+// ── Categorize ────────────────────────────────────────────────────────────
+function categorize(rows, setVal, denom, method) {
+  const maxLevel = setVal === 0 ? 99 : setVal;
+  const filtered = rows.filter(r => r.display_level <= maxLevel);
+
+  const buckets = {
+    above_up:   [],
+    above_down: [],
+    below_up:   [],
+    below_down: [],
+    nodata:     [],
+  };
+
+  for (const row of filtered) {
+    const dev      = getDevNow(row, method, denom);
+    const dev6m    = getDev6m(row, method, denom);
+    const devCovid = getDevCovid(row, method, denom);
+    const direction = (dev != null && dev6m != null) ? dev - dev6m : null;
+
+    if (dev == null || direction == null) {
+      buckets.nodata.push({ row, dev, direction, devCovid });
+      continue;
+    }
+
+    const above     = dev > 0;
+    const increasing = direction > 0;
+    const key = `${above ? "above" : "below"}_${increasing ? "up" : "down"}`;
+    buckets[key].push({ row, dev, direction, devCovid });
+  }
+  return buckets;
+}
+
+// ── Sort state per section ─────────────────────────────────────────────────
+// { col: "dev"|"dir"|"covid"|null, asc: bool }
+const sortStates = {};
+const SECTIONS = ["above-up", "above-down", "below-up", "below-down", "nodata"];
+
+function defaultSortState() {
+  return { col: "dev", asc: false };  // abs(dev) descending
+}
+
+SECTIONS.forEach(s => { sortStates[s] = defaultSortState(); });
+
+function sortEntries(entries, state) {
+  const copy = entries.slice();
+  copy.sort((a, b) => {
+    let av, bv;
+    if (state.col === "dev") {
+      av = a.dev != null ? Math.abs(a.dev) : null;
+      bv = b.dev != null ? Math.abs(b.dev) : null;
+    } else if (state.col === "dir") {
+      av = a.direction;
+      bv = b.direction;
+    } else if (state.col === "covid") {
+      // Change from COVID = dev - devCovid
+      av = (a.dev != null && a.devCovid != null) ? a.dev - a.devCovid : null;
+      bv = (b.dev != null && b.devCovid != null) ? b.dev - b.devCovid : null;
+    } else {
+      return 0;
+    }
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return state.asc ? av - bv : bv - av;
+  });
+  return copy;
+}
+
+// ── Render helpers ─────────────────────────────────────────────────────────
+function devUnits(method) {
+  return method === 4 ? "Deviation (ppt)" : "Deviation (log diff)";
+}
+
+function fmtDev(v, method) {
+  if (v == null) return '<span class="text-muted">—</span>';
+  const dp   = method === 4 ? 3 : 4;
+  const cls  = v > 0 ? "text-success" : v < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${v.toFixed(dp)}</span>`;
+}
+
+function fmtChange(v, method, above) {
+  // v = direction (dev - dev6m); above = whether dev > 0
+  if (v == null) return '<span class="text-muted">—</span>';
+  const dp = method === 4 ? 3 : 4;
+  // converging = moving toward 0
+  const converging = above ? v < 0 : v > 0;
+  const cls = converging ? "text-pos" : (v !== 0 ? "text-neg" : "");
+  return `<span class="${cls}">${v >= 0 ? "+" : ""}${v.toFixed(dp)}</span>`;
+}
+
+function fmtCovidChange(dev, devCovid, method) {
+  if (dev == null || devCovid == null) return '<span class="text-muted">—</span>';
+  const diff = dev - devCovid;
+  const dp   = method === 4 ? 3 : 4;
+  const cls  = diff > 0 ? "text-success" : diff < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${diff >= 0 ? "+" : ""}${diff.toFixed(dp)}</span>`;
+}
+
+function makeTheadHtml(secId, method, denom, showDenom) {
+  const state = sortStates[secId];
+  function icon(col) {
+    if (state.col !== col) return '<span class="text-secondary">⇅</span>';
+    return state.asc ? '↑' : '↓';
+  }
+  const denomCol = showDenom
+    ? `<th class="text-muted">Denominator</th>`
+    : "";
+  return `<tr class="text-center align-middle">
+    <th class="text-start" style="min-width:220px">Industry</th>
+    <th>Level</th>
+    <th>${LAST_LABEL}<br><small class="text-muted">(000s)</small></th>
+    <th>Share</th>
+    <th class="sortable" data-sec="${secId}" data-col="dev" style="cursor:pointer">
+      ${devUnits(method)} ${icon("dev")}
+    </th>
+    <th class="sortable" data-sec="${secId}" data-col="dir" style="cursor:pointer">
+      6-mo change ${icon("dir")}
+    </th>
+    <th class="sortable" data-sec="${secId}" data-col="covid" style="cursor:pointer">
+      Change from COVID ${icon("covid")}
+    </th>
+    ${denomCol}
+  </tr>`;
+}
+
+function makeRowHtml(entry, method, denom, above, showDenom) {
+  const { row, dev, direction, devCovid } = entry;
+  const opt  = (row.opts || {})[String(denom)] || {};
+  const share = opt.share != null ? (opt.share * 100).toFixed(2) + "%" : "—";
+  const emp   = row.emp_recent != null ? row.emp_recent.toLocaleString(undefined, {maximumFractionDigits:1}) : "—";
+  // Build industry link: /{series_id}/?denom=N&method=M
+  const params = new URLSearchParams({ denom, method });
+  const href = `../${row.series_id}/?${params}`;
+  const denomCell = showDenom
+    ? `<td class="text-muted small">${method !== 3 ? (opt.denom_name || "—") : "—"}</td>`
+    : "";
+  return `<tr>
+    <td><a href="${href}" class="text-decoration-none industry-link">${row.industry_name}</a></td>
+    <td class="text-center">${row.display_level}</td>
+    <td class="text-end">${emp}</td>
+    <td class="text-end">${share}</td>
+    <td class="text-end">${fmtDev(dev, method)}</td>
+    <td class="text-end">${fmtChange(direction, method, above)}</td>
+    <td class="text-end">${fmtCovidChange(dev, devCovid, method)}</td>
+    ${denomCell}
+  </tr>`;
+}
+
+function makeNodataRowHtml(entry, method, denom, showDenom) {
+  const { row } = entry;
+  const href = `../${row.series_id}/?denom=${denom}&method=${method}`;
+  const denomCell = showDenom ? `<td class="text-muted small">—</td>` : "";
+  return `<tr class="text-muted">
+    <td><a href="${href}" class="text-decoration-none">${row.industry_name}</a></td>
+    <td class="text-center">${row.display_level}</td>
+    <td class="text-end">—</td>
+    <td class="text-end">—</td>
+    <td class="text-end">—</td>
+    <td class="text-end">—</td>
+    <td class="text-end">—</td>
+    ${denomCell}
+  </tr>`;
+}
+
+// ── Render analysis ────────────────────────────────────────────────────────
+let currentBuckets = {};
+
+function renderAnalysis(setVal, denom, method) {
+  const buckets = categorize(ALL_ROWS, setVal, denom, method);
+  currentBuckets = buckets;
+
+  const SEC_KEYS = [
+    { key: "above_up",   secId: "above-up",   above: true },
+    { key: "above_down", secId: "above-down",  above: true },
+    { key: "below_up",   secId: "below-up",    above: false },
+    { key: "below_down", secId: "below-down",  above: false },
+    { key: "nodata",     secId: "nodata",       above: null },
+  ];
+
+  const showDenom = method !== 3;
+
+  for (const { key, secId, above } of SEC_KEYS) {
+    const state   = sortStates[secId];
+    const entries = sortEntries(buckets[key], state);
+    const count   = entries.length;
+
+    document.getElementById(`cnt-${secId}`)?.setAttribute && null;
+    const badge = document.getElementById(`badge-${secId}`);
+    if (badge) badge.textContent = count;
+
+    const thead = document.getElementById(`thead-${secId}`);
+    if (thead) thead.innerHTML = makeTheadHtml(secId, method, denom, showDenom);
+
+    const tbody = document.getElementById(`tbody-${secId}`);
+    if (tbody) {
+      if (key === "nodata") {
+        tbody.innerHTML = entries.map(e => makeNodataRowHtml(e, method, denom, showDenom)).join("");
+      } else {
+        tbody.innerHTML = entries.map(e => makeRowHtml(e, method, denom, above, showDenom)).join("");
+      }
+    }
+
+    // Re-attach sort listeners
+    const thead2 = document.getElementById(`thead-${secId}`);
+    if (thead2) {
+      thead2.querySelectorAll("th.sortable").forEach(th => {
+        th.addEventListener("click", () => {
+          const col = th.dataset.col;
+          const st  = sortStates[secId];
+          if (st.col === col) {
+            st.asc = !st.asc;
+          } else {
+            sortStates[secId] = { col, asc: false };
+          }
+          renderAnalysis(currentSet, currentDenom, currentMethod);
+        });
+      });
+    }
+  }
+
+  // Summary bar counts
+  document.getElementById("cnt-above-up").textContent   = buckets.above_up.length;
+  document.getElementById("cnt-above-down").textContent = buckets.above_down.length;
+  document.getElementById("cnt-below-up").textContent   = buckets.below_up.length;
+  document.getElementById("cnt-below-down").textContent = buckets.below_down.length;
+  document.getElementById("cnt-nodata").textContent     = buckets.nodata.length;
+  const total = Object.values(buckets).reduce((s, b) => s + b.length, 0);
+  document.getElementById("cnt-total").textContent      = total;
+}
+
+// ── URL param helpers ──────────────────────────────────────────────────────
+function getParams() {
+  const p   = new URLSearchParams(window.location.search);
+  const set = parseInt(p.get("set"))    || 4;
+  const den = parseInt(p.get("denom"))  || 4;
+  const met = parseInt(p.get("method")) || 1;
+  return {
+    set:    [0, 2, 3, 4].includes(set) ? set : 4,
+    denom:  (den >= 1 && den <= 5)     ? den : 4,
+    method: (met >= 1 && met <= 4)     ? met : 1,
+  };
+}
+
+function pushParams(set, denom, method) {
+  const url = new URL(window.location);
+  url.searchParams.set("set",    set);
+  url.searchParams.set("denom",  denom);
+  url.searchParams.set("method", method);
+  history.pushState({}, "", url);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+let currentSet    = 4;
+let currentDenom  = 4;
+let currentMethod = 1;
+
+(function init() {
+  const p = getParams();
+  currentSet    = p.set;
+  currentDenom  = p.denom;
+  currentMethod = p.method;
+
+  document.getElementById("set-select").value    = String(currentSet);
+  document.getElementById("denom-select").value  = String(currentDenom);
+  document.getElementById("method-select").value = String(currentMethod);
+
+  renderAnalysis(currentSet, currentDenom, currentMethod);
+})();
+
+document.getElementById("set-select").addEventListener("change", function() {
+  currentSet = parseInt(this.value);
+  SECTIONS.forEach(s => { sortStates[s] = defaultSortState(); });
+  pushParams(currentSet, currentDenom, currentMethod);
+  renderAnalysis(currentSet, currentDenom, currentMethod);
+});
+
+document.getElementById("denom-select").addEventListener("change", function() {
+  currentDenom = parseInt(this.value);
+  SECTIONS.forEach(s => { sortStates[s] = defaultSortState(); });
+  pushParams(currentSet, currentDenom, currentMethod);
+  renderAnalysis(currentSet, currentDenom, currentMethod);
+});
+
+document.getElementById("method-select").addEventListener("change", function() {
+  currentMethod = parseInt(this.value);
+  SECTIONS.forEach(s => { sortStates[s] = defaultSortState(); });
+  pushParams(currentSet, currentDenom, currentMethod);
+  renderAnalysis(currentSet, currentDenom, currentMethod);
+});
+</script>
+{% endblock %}

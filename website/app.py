@@ -41,6 +41,15 @@ def index():
     )
 
 
+@app.route("/analysis/")
+@app.route("/analysis")
+def analysis():
+    return render_template("analysis.html",
+                           rows=_TABLE_DATA["rows"],
+                           last_label=_TABLE_DATA.get("last_label", ""),
+                           opt_labels=_TABLE_DATA.get("opt_labels", {}))
+
+
 @app.route("/<series_id>/", strict_slashes=False)
 def industry(series_id: str):
     # Basic validation: BLS series IDs are alphanumeric

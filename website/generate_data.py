@@ -63,6 +63,21 @@ def month_label(dt) -> str:
     return dt.strftime("%b-%y")
 
 
+def last_valid_idx_np(arr: np.ndarray) -> int:
+    """Return index of last non-NaN, non-inf value, or -1 if none."""
+    mask = np.isfinite(arr)
+    idxs = np.where(mask)[0]
+    return int(idxs[-1]) if len(idxs) > 0 else -1
+
+
+def scalar_at(arr: np.ndarray, idx: int):
+    """Return arr[idx] rounded to 6dp, or None if out of range / not finite."""
+    if idx < 0 or idx >= len(arr):
+        return None
+    v = float(arr[idx])
+    return None if not np.isfinite(v) else round(v, 6)
+
+
 def arr_to_list(arr, rd=6):
     out = []
     for v in arr:
@@ -95,6 +110,11 @@ MARCH2020_STR = "2020-03-01"
 last_lbl  = month_label(all_dates[-1])
 prev_lbl  = month_label(all_dates[-2])
 today_str = date.today().strftime("%Y-%m-%d")
+
+try:
+    covid_idx = date_strs.index(MARCH2020_STR)
+except ValueError:
+    covid_idx = -1
 
 # Look-up dicts from mapping
 id_to_name = dict(zip(mapping["series_id"], mapping["industry_name"]))
@@ -248,6 +268,12 @@ for _, mrow in mapping.iterrows():
 
     r = results[sid]
 
+    # Level snapshots (option-independent)
+    resid_ll_np = r["resid_ll"]
+    lv_ll = last_valid_idx_np(resid_ll_np)
+    dev_log_level_6m    = scalar_at(resid_ll_np, lv_ll - 6) if lv_ll >= 6 else None
+    dev_log_level_covid = scalar_at(resid_ll_np, covid_idx)
+
     # Build per-option summary for the table
     opts_summary = {}
     for opt in range(1, 6):
@@ -257,25 +283,41 @@ for _, mrow in mapping.iterrows():
         share_val = to_float(s_drop.iloc[-1]) if len(s_drop) > 0 else None
         share_pct = pct_of_score(sv_ser)
 
+        resid_ls_np = o["resid_ls"]
+        resid_hp_np = o["resid_hp"]
+        resid_rs_np = o["resid_rs"]
+
+        lv_ls = last_valid_idx_np(resid_ls_np)
+        lv_hp = last_valid_idx_np(resid_hp_np)
+        lv_rs = last_valid_idx_np(resid_rs_np)
+
         opts_summary[str(opt)] = {
-            "share":             share_val,
-            "share_pct":         share_pct,
-            "dev_log_share":     last_nonnan3(o["resid_ls"]),
-            "dev_raw_share_pct": last_nonnan3(o["resid_rs"]),
-            "dev_log_share_hp":  last_nonnan3(o["resid_hp"]),
-            "denom_name":        id_to_name.get(o["denom_id"], ""),
+            "share":                   share_val,
+            "share_pct":               share_pct,
+            "dev_log_share":           last_nonnan3(resid_ls_np),
+            "dev_log_share_6m":        scalar_at(resid_ls_np, lv_ls - 6) if lv_ls >= 6 else None,
+            "dev_log_share_covid":     scalar_at(resid_ls_np, covid_idx),
+            "dev_raw_share_pct":       last_nonnan3(resid_rs_np),
+            "dev_raw_share_pct_6m":    scalar_at(resid_rs_np, lv_rs - 6) if lv_rs >= 6 else None,
+            "dev_raw_share_pct_covid": scalar_at(resid_rs_np, covid_idx),
+            "dev_log_share_hp":        last_nonnan3(resid_hp_np),
+            "dev_log_share_hp_6m":     scalar_at(resid_hp_np, lv_hp - 6) if lv_hp >= 6 else None,
+            "dev_log_share_hp_covid":  scalar_at(resid_hp_np, covid_idx),
+            "denom_name":              id_to_name.get(o["denom_id"], ""),
         }
 
     rows.append({
-        "series_id":        sid,
-        "industry_name":    name,
-        "display_level":    lvl,
-        "emp_recent":       emp_recent,
-        "emp_recent_label": last_lbl,
-        "emp_prev":         emp_prev,
-        "emp_prev_label":   prev_lbl,
-        "dev_log_level":    last_nonnan3(r["resid_ll"]),
-        "opts":             opts_summary,
+        "series_id":           sid,
+        "industry_name":       name,
+        "display_level":       lvl,
+        "emp_recent":          emp_recent,
+        "emp_recent_label":    last_lbl,
+        "emp_prev":            emp_prev,
+        "emp_prev_label":      prev_lbl,
+        "dev_log_level":       last_nonnan3(r["resid_ll"]),
+        "dev_log_level_6m":    dev_log_level_6m,
+        "dev_log_level_covid": dev_log_level_covid,
+        "opts":                opts_summary,
     })
 
 with open(DATA_OUT / "table_data.json", "w") as f:

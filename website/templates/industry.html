@@ -38,6 +38,7 @@
 </p>
 
 <!-- ── Row 1: Log-linear Level (option-independent) ─────────────────────── -->
+<div id="row-ll">
 <h6 class="fw-semibold mb-2 border-bottom pb-1">Employment Level — Log-Linear Trend</h6>
 <div class="row g-3 mb-4">
   <div class="col-12 col-xl-6">
@@ -54,7 +55,10 @@
   </div>
 </div>
 
+</div><!-- /row-ll -->
+
 <!-- ── Row 2: Log-linear Share (option-dependent) ───────────────────────── -->
+<div id="row-ls">
 <h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-ls">Employment Share — Log-Linear Trend</h6>
 <div class="row g-3 mb-4">
   <div class="col-12 col-xl-6">
@@ -71,7 +75,10 @@
   </div>
 </div>
 
+</div><!-- /row-ls -->
+
 <!-- ── Row 3: HP Filter Log Share (option-dependent) ────────────────────── -->
+<div id="row-hp">
 <h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-hp">Employment Share — HP Filter Counterfactual</h6>
 <div class="row g-3 mb-4">
   <div class="col-12 col-xl-6">
@@ -88,7 +95,10 @@
   </div>
 </div>
 
+</div><!-- /row-hp -->
+
 <!-- ── Row 4: Raw-share Linear (option-dependent) ───────────────────────── -->
+<div id="row-rs">
 <h6 class="fw-semibold mb-2 border-bottom pb-1" id="hdr-rs">Employment Share — Raw Linear Trend</h6>
 <div class="row g-3">
   <div class="col-12 col-xl-6">
@@ -104,6 +114,7 @@
     </div>
   </div>
 </div>
+</div><!-- /row-rs -->
 {% endblock %}
 
 {% block scripts %}
@@ -257,6 +268,20 @@ function setUrlOpt(opt) {
   opt === 1 ? url.searchParams.delete("denom") : url.searchParams.set("denom", opt);
   history.pushState({}, "", url);
 }
+
+// ── Scroll to chart row based on ?method=N ─────────────────────────────────
+(function() {
+  const methodParam = parseInt(new URLSearchParams(window.location.search).get("method")) || 0;
+  const ROW_ID = { 1: "row-ls", 2: "row-hp", 3: "row-ll", 4: "row-rs" }[methodParam];
+  if (ROW_ID) {
+    const el = document.getElementById(ROW_ID);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("border", "border-primary", "rounded");
+      setTimeout(() => el.classList.remove("border", "border-primary", "rounded"), 3000);
+    }
+  }
+})();
 
 // Update "Back to Table" link to preserve denom selection
 // Use existing href as base so relative URLs work on both Render and GitHub Pages

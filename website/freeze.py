@@ -47,6 +47,11 @@ def serve_data():
 
 
 @freezer.register_generator
+def analysis():
+    yield {}  # single page at /analysis/
+
+
+@freezer.register_generator
 def download():
     return []  # legacy route, no longer linked from HTML
 
@@ -58,7 +63,7 @@ if __name__ == "__main__":
     if build_dir.exists():
         shutil.rmtree(build_dir)
 
-    print(f"Freezing {len(_sids) + 1} pages + {len(list(DATA_DIR.glob('*_export.csv')))} CSV files…")
+    print(f"Freezing {len(_sids) + 2} pages + {len(list(DATA_DIR.glob('*_export.csv')))} CSV files…")
     freezer.freeze()
 
     build_dir = Path(__file__).parent / "build"
