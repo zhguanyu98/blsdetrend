@@ -49,6 +49,7 @@
       <option value="1">1 month</option>
       <option value="3">3 months</option>
       <option value="6" selected>6 months</option>
+      <option value="12">12 months</option>
     </select>
   </div>
   <div class="d-flex align-items-center gap-2">
@@ -156,7 +157,7 @@ document.getElementById("pattern-none").addEventListener("click", () => {
   pushParams(); renderAnalysis();
 });
 
-// ── Deviation accessors ────────────────────────────────────────────────────
+// ── Deviation accessors (for above/below classification and deviation column) ─
 function getDevNow(row, method, opt) {
   if (method === 3) return row.dev_log_level;
   const o = (row.opts || {})[String(opt)] || {};
@@ -166,40 +167,34 @@ function getDevNow(row, method, opt) {
   return null;
 }
 
-function getDevAtLag(row, method, opt, lag) {
-  const s = `_${lag}m`;
-  if (method === 3) return row[`dev_log_level${s}`] ?? null;
-  const o = (row.opts || {})[String(opt)] || {};
-  if (method === 1) return o[`dev_log_share${s}`] ?? null;
-  if (method === 2) return o[`dev_log_share_hp${s}`] ?? null;
-  if (method === 4) return o[`dev_raw_share_pct${s}`] ?? null;
-  return null;
+// ── Share level accessors (for direction, 2nd-deriv, COVID) ───────────────────
+function getShareNow(row, opt) {
+  return (row.opts || {})[String(opt)]?.share ?? null;
 }
 
-function getDevCovid(row, method, opt) {
-  if (method === 3) return row.dev_log_level_covid ?? null;
-  const o = (row.opts || {})[String(opt)] || {};
-  if (method === 1) return o.dev_log_share_covid ?? null;
-  if (method === 2) return o.dev_log_share_hp_covid ?? null;
-  if (method === 4) return o.dev_raw_share_pct_covid ?? null;
-  return null;
+function getShareAtLag(row, opt, lag) {
+  return (row.opts || {})[String(opt)]?.[`share_${lag}m`] ?? null;
 }
 
-// ── Second derivative ──────────────────────────────────────────────────────
-function computeDerivs(row, method, opt, derivRef) {
-  const devNow = getDevNow(row, method, opt);
-  const d3     = getDevAtLag(row, method, opt, 3);
-  const recentChange = (devNow != null && d3 != null) ? devNow - d3 : null;
+function getShareCovid(row, opt) {
+  return (row.opts || {})[String(opt)]?.share_covid ?? null;
+}
+
+// ── Second derivative (share-level based) ─────────────────────────────────
+function computeDerivs(row, opt, derivRef) {
+  const sNow = getShareNow(row, opt);
+  const s3   = getShareAtLag(row, opt, 3);
+  const recentChange = (sNow != null && s3 != null) ? sNow - s3 : null;
 
   let pastChange = null;
   if (derivRef === "A") {
-    const d12 = getDevAtLag(row, method, opt, 12);
-    const d15 = getDevAtLag(row, method, opt, 15);
-    pastChange = (d12 != null && d15 != null) ? d12 - d15 : null;
+    const s12 = getShareAtLag(row, opt, 12);
+    const s15 = getShareAtLag(row, opt, 15);
+    pastChange = (s12 != null && s15 != null) ? s12 - s15 : null;
   } else {
-    const d6 = getDevAtLag(row, method, opt, 6);
-    const d9 = getDevAtLag(row, method, opt, 9);
-    pastChange = (d6 != null && d9 != null) ? d6 - d9 : null;
+    const s6 = getShareAtLag(row, opt, 6);
+    const s9 = getShareAtLag(row, opt, 9);
+    pastChange = (s6 != null && s9 != null) ? s6 - s9 : null;
   }
 
   const secondDeriv = (recentChange != null && pastChange != null)
@@ -226,21 +221,23 @@ function categorize(rows, setVal, denom, method, window, derivRef) {
   const buckets = { "above-up":[], "above-down":[], "below-up":[], "below-down":[], nodata:[] };
 
   for (const row of filtered) {
-    const dev       = getDevNow(row, method, denom);
-    const devPast   = getDevAtLag(row, method, denom, window);
-    const devCovid  = getDevCovid(row, method, denom);
-    const direction = (dev != null && devPast != null) ? dev - devPast : null;
-    const { recentChange, pastChange, secondDeriv } = computeDerivs(row, method, denom, derivRef);
+    const dev             = getDevNow(row, method, denom);
+    const shareNow        = getShareNow(row, denom);
+    const sharePast       = getShareAtLag(row, denom, window);
+    const shareCovid      = getShareCovid(row, denom);
+    const direction       = (shareNow != null && sharePast != null) ? shareNow - sharePast : null;
+    const covidShareChange = (shareNow != null && shareCovid != null) ? shareNow - shareCovid : null;
+    const { recentChange, pastChange, secondDeriv } = computeDerivs(row, denom, derivRef);
     const pattern = getPattern(recentChange, pastChange, secondDeriv);
 
     if (dev == null || direction == null) {
-      buckets.nodata.push({ row, dev, direction, devCovid, recentChange, pastChange, secondDeriv, pattern });
+      buckets.nodata.push({ row, dev, direction, covidShareChange, recentChange, pastChange, secondDeriv, pattern });
       continue;
     }
     const above      = dev > 0;
     const increasing = direction > 0;
     const key = `${above ? "above" : "below"}-${increasing ? "up" : "down"}`;
-    buckets[key].push({ row, dev, direction, devCovid, recentChange, pastChange, secondDeriv, pattern });
+    buckets[key].push({ row, dev, direction, covidShareChange, recentChange, pastChange, secondDeriv, pattern });
   }
   return buckets;
 }
@@ -256,7 +253,7 @@ function sortEntries(entries, state) {
     let av, bv;
     if      (state.col === "dev")    { av = a.dev    != null ? Math.abs(a.dev)    : null; bv = b.dev    != null ? Math.abs(b.dev)    : null; }
     else if (state.col === "dir")    { av = a.direction;   bv = b.direction; }
-    else if (state.col === "covid")  { av = (a.dev != null && a.devCovid != null) ? a.dev - a.devCovid : null; bv = (b.dev != null && b.devCovid != null) ? b.dev - b.devCovid : null; }
+    else if (state.col === "covid")  { av = a.covidShareChange; bv = b.covidShareChange; }
     else if (state.col === "recent") { av = a.recentChange; bv = b.recentChange; }
     else if (state.col === "past")   { av = a.pastChange;   bv = b.pastChange; }
     else if (state.col === "d2")     { av = a.secondDeriv;  bv = b.secondDeriv; }
@@ -277,26 +274,27 @@ function fmtDev(v, method, dp) {
   return `<span class="${cls}">${v.toFixed(d)}</span>`;
 }
 
-function fmtChange(v, method, above) {
+// Share-based change: v is a decimal, displayed as percentage points (×100, 2dp)
+function fmtShareChange(v, above) {
   if (v == null) return '<span class="text-muted">—</span>';
-  const dp  = method === 4 ? 3 : 4;
+  const pp = v * 100;
   const converging = above ? v < 0 : v > 0;
   const cls = v === 0 ? "" : (converging ? "text-pos" : "text-neg");
-  return `<span class="${cls}">${v >= 0 ? "+" : ""}${v.toFixed(dp)}</span>`;
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}</span>`;
 }
 
-function fmtCovidChange(dev, devCovid, method) {
-  if (dev == null || devCovid == null) return '<span class="text-muted">—</span>';
-  const diff = dev - devCovid;
-  const dp   = method === 4 ? 3 : 4;
-  const cls  = diff > 0 ? "text-success" : diff < 0 ? "text-danger" : "";
-  return `<span class="${cls}">${diff >= 0 ? "+" : ""}${diff.toFixed(dp)}</span>`;
-}
-
-function fmtD2(v) {
+function fmtCovidShareChange(v) {
   if (v == null) return '<span class="text-muted">—</span>';
-  const cls = v > 0 ? "text-success" : v < 0 ? "text-danger" : "";
-  return `<span class="${cls}">${v >= 0 ? "+" : ""}${v.toFixed(3)}</span>`;
+  const pp  = v * 100;
+  const cls = pp > 0 ? "text-success" : pp < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}</span>`;
+}
+
+function fmtSharePP(v) {
+  if (v == null) return '<span class="text-muted">—</span>';
+  const pp = v * 100;
+  const cls = pp > 0 ? "text-success" : pp < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}</span>`;
 }
 
 function patternBadge(pattern) {
@@ -315,7 +313,8 @@ function makeTheadHtml(secId, method, window, derivRef, showDenom) {
   function ico(col) {
     return st.col === col ? (st.asc ? "↑" : "↓") : '<span class="text-secondary">⇅</span>';
   }
-  const pastLabel = derivRef === "A" ? "Past 3M Δ (t−12)" : "Past 3M Δ (t−6)";
+  const winLabel  = `${window}M share Δ`;
+  const pastLabel = derivRef === "A" ? "Past 3M share Δ (t−12)" : "Past 3M share Δ (t−6)";
   const denomCol  = showDenom ? `<th class="text-muted">Denominator</th>` : "";
   return `<tr class="text-center align-middle">
     <th class="text-start" style="min-width:200px">Industry</th>
@@ -323,11 +322,11 @@ function makeTheadHtml(secId, method, window, derivRef, showDenom) {
     <th>${LAST_LABEL}<br><small>(000s)</small></th>
     <th>Share</th>
     <th class="sortable" data-sec="${secId}" data-col="dev">${devUnits(method)} ${ico("dev")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="dir">${window}-mo change ${ico("dir")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="covid">Δ from COVID ${ico("covid")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="recent">Recent 3M Δ ${ico("recent")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="past">${pastLabel} ${ico("past")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="d2">2nd Deriv. ${ico("d2")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="dir">${winLabel} (pp) ${ico("dir")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="covid">Δ Share since COVID shock (pp) ${ico("covid")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="recent">Recent 3M share Δ (pp) ${ico("recent")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="past">${pastLabel} (pp) ${ico("past")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="d2">2nd Deriv. (pp) ${ico("d2")}</th>
     <th>Pattern</th>
     ${denomCol}
   </tr>`;
@@ -335,7 +334,7 @@ function makeTheadHtml(secId, method, window, derivRef, showDenom) {
 
 // ── Row builder ───────────────────────────────────────────────────────────
 function makeRowHtml(entry, method, denom, above, showDenom, window) {
-  const { row, dev, direction, devCovid, recentChange, pastChange, secondDeriv, pattern } = entry;
+  const { row, dev, direction, covidShareChange, recentChange, pastChange, secondDeriv, pattern } = entry;
   const opt    = (row.opts || {})[String(denom)] || {};
   const share  = opt.share != null ? (opt.share * 100).toFixed(2) + "%" : "—";
   const emp    = row.emp_recent != null ? row.emp_recent.toLocaleString(undefined,{maximumFractionDigits:1}) : "—";
@@ -349,11 +348,11 @@ function makeRowHtml(entry, method, denom, above, showDenom, window) {
     <td class="text-end">${emp}</td>
     <td class="text-end">${share}</td>
     <td class="text-end">${fmtDev(dev, method)}</td>
-    <td class="text-end">${fmtChange(direction, method, above)}</td>
-    <td class="text-end">${fmtCovidChange(dev, devCovid, method)}</td>
-    <td class="text-end">${fmtDev(recentChange, method, 3)}</td>
-    <td class="text-end">${fmtDev(pastChange, method, 3)}</td>
-    <td class="text-end">${fmtD2(secondDeriv)}</td>
+    <td class="text-end">${fmtShareChange(direction, above)}</td>
+    <td class="text-end">${fmtCovidShareChange(covidShareChange)}</td>
+    <td class="text-end">${fmtSharePP(recentChange)}</td>
+    <td class="text-end">${fmtSharePP(pastChange)}</td>
+    <td class="text-end">${fmtSharePP(secondDeriv)}</td>
     <td>${patternBadge(pattern)}</td>
     ${denomCell}
   </tr>`;
@@ -459,7 +458,7 @@ function getParams() {
     set:     [0,2,3,4].includes(set) ? set : 4,
     denom:   (den >= 1 && den <= 6)   ? den : 4,
     method:  (met >= 1 && met <= 4)   ? met : 1,
-    window:  [1,3,6].includes(win)    ? win : 6,
+    window:  [1,3,6,12].includes(win)  ? win : 6,
     deriv,
     patterns: pats,
   };

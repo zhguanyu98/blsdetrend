@@ -94,6 +94,24 @@ def peak_covid_scalar(arr: np.ndarray, idxs: list):
     return best_val
 
 
+def covid_share_scalar(sv: np.ndarray, covid_idxs: list):
+    """Return the share level at the month of max |month-over-month share change|
+    in Mar/Apr/May 2020 (dynamically identified shock month)."""
+    best_val, best_abs = None, -1.0
+    for idx in covid_idxs:
+        if idx < 1 or idx >= len(sv):
+            continue
+        v_curr = sv[idx]
+        v_prev = sv[idx - 1]
+        if not (np.isfinite(v_curr) and np.isfinite(v_prev)):
+            continue
+        chg = abs(float(v_curr) - float(v_prev))
+        if chg > best_abs:
+            best_abs = chg
+            best_val = round(float(v_curr), 6)
+    return best_val
+
+
 def lag_snapshots(arr: np.ndarray, lv_idx: int) -> dict:
     """Return {_1m, _3m, _6m, _9m, _12m, _15m} scalars relative to lv_idx."""
     return {f"_{n}m": scalar_at(arr, lv_idx - n) if lv_idx >= n else None
@@ -307,15 +325,21 @@ for _, mrow in mapping.iterrows():
         resid_ls_np = o["resid_ls"]
         resid_hp_np = o["resid_hp"]
         resid_rs_np = o["resid_rs"]
+        sv_np       = o["sv"]
 
         ls_snaps = lag_snapshots(resid_ls_np, last_valid_idx_np(resid_ls_np))
         hp_snaps = lag_snapshots(resid_hp_np, last_valid_idx_np(resid_hp_np))
         rs_snaps = lag_snapshots(resid_rs_np, last_valid_idx_np(resid_rs_np))
+        sv_snaps = lag_snapshots(sv_np,       last_valid_idx_np(sv_np))
+        sv_covid = covid_share_scalar(sv_np, covid_idxs)
 
         opts_summary[str(opt)] = {
             "share":       share_val,
             "share_pct":   share_pct,
             "denom_name":  id_to_name.get(o["denom_id"], ""),
+            # share level lags (for direction / 2nd-deriv / COVID)
+            **{f"share{k}": sv_snaps[k] for k in sv_snaps},
+            "share_covid": sv_covid,
             # log-linear share — current + lags + covid
             "dev_log_share":        last_nonnan3(resid_ls_np),
             **{f"dev_log_share{k}":        ls_snaps[k] for k in ls_snaps},
