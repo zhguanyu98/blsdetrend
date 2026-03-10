@@ -280,21 +280,21 @@ function fmtShareChange(v, above) {
   const pp = v * 100;
   const converging = above ? v < 0 : v > 0;
   const cls = v === 0 ? "" : (converging ? "text-pos" : "text-neg");
-  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}</span>`;
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}%</span>`;
 }
 
 function fmtCovidShareChange(v) {
   if (v == null) return '<span class="text-muted">—</span>';
   const pp  = v * 100;
   const cls = pp > 0 ? "text-success" : pp < 0 ? "text-danger" : "";
-  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}</span>`;
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}%</span>`;
 }
 
 function fmtSharePP(v) {
   if (v == null) return '<span class="text-muted">—</span>';
   const pp = v * 100;
   const cls = pp > 0 ? "text-success" : pp < 0 ? "text-danger" : "";
-  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}</span>`;
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}%</span>`;
 }
 
 function patternBadge(pattern) {
@@ -322,11 +322,11 @@ function makeTheadHtml(secId, method, window, derivRef, showDenom) {
     <th>${LAST_LABEL}<br><small>(000s)</small></th>
     <th>Share</th>
     <th class="sortable" data-sec="${secId}" data-col="dev">${devUnits(method)} ${ico("dev")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="dir">${winLabel} (pp) ${ico("dir")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="covid">Δ Share since COVID shock (pp) ${ico("covid")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="recent">Recent 3M share Δ (pp) ${ico("recent")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="past">${pastLabel} (pp) ${ico("past")}</th>
-    <th class="sortable" data-sec="${secId}" data-col="d2">2nd Deriv. (pp) ${ico("d2")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="dir">${winLabel} ${ico("dir")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="covid">Δ Share since COVID shock ${ico("covid")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="recent">Recent 3M share Δ ${ico("recent")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="past">${pastLabel} ${ico("past")}</th>
+    <th class="sortable" data-sec="${secId}" data-col="d2">2nd Deriv. ${ico("d2")}</th>
     <th>Pattern</th>
     ${denomCol}
   </tr>`;
