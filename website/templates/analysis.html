@@ -278,23 +278,22 @@ function fmtDev(v, method, dp) {
 function fmtShareChange(v, above) {
   if (v == null) return '<span class="text-muted">—</span>';
   const pp = v * 100;
-  const converging = above ? v < 0 : v > 0;
-  const cls = v === 0 ? "" : (converging ? "text-pos" : "text-neg");
-  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}%</span>`;
+  const cls = pp > 0 ? "text-success" : pp < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(4)}%</span>`;
 }
 
 function fmtCovidShareChange(v) {
   if (v == null) return '<span class="text-muted">—</span>';
   const pp  = v * 100;
   const cls = pp > 0 ? "text-success" : pp < 0 ? "text-danger" : "";
-  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}%</span>`;
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(4)}%</span>`;
 }
 
 function fmtSharePP(v) {
   if (v == null) return '<span class="text-muted">—</span>';
   const pp = v * 100;
   const cls = pp > 0 ? "text-success" : pp < 0 ? "text-danger" : "";
-  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(2)}%</span>`;
+  return `<span class="${cls}">${pp >= 0 ? "+" : ""}${pp.toFixed(4)}%</span>`;
 }
 
 function patternBadge(pattern) {
