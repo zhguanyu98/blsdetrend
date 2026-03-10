@@ -9,7 +9,7 @@
 </div>
 
 <p class="text-muted small mb-3">
-  Industries categorized by whether employment share/level is above or below trend, and whether the deviation is increasing or decreasing over the selected window.
+  Industries categorized by whether employment share/level is above or below trend, and whether the share is increasing or decreasing over the selected window.
 </p>
 
 <!-- Controls bar -->
@@ -90,11 +90,11 @@
 
 <!-- ── Sections ────────────────────────────────────────────────────────────── -->
 {% for sec_id, title, badge_cls in [
-    ("above-up",   "▲ Above trend, increasing deviation", "bg-danger"),
-    ("above-down", "▲ Above trend, decreasing deviation", "bg-success"),
-    ("below-up",   "▼ Below trend, increasing deviation", "bg-success"),
-    ("below-down", "▼ Below trend, decreasing deviation", "bg-danger"),
-    ("nodata",     "Insufficient data",                   "bg-secondary"),
+    ("above-up",   "▲ Above trend, increasing", "bg-danger"),
+    ("above-down", "▲ Above trend, decreasing", "bg-success"),
+    ("below-up",   "▼ Below trend, increasing", "bg-success"),
+    ("below-down", "▼ Below trend, decreasing", "bg-danger"),
+    ("nodata",     "Insufficient data",          "bg-secondary"),
 ] %}
 <div class="mb-4" id="sec-{{ sec_id }}">
   <button class="btn btn-sm w-100 text-start analysis-section-header fw-semibold py-2 px-3"
