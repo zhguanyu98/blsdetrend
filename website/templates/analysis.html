@@ -29,9 +29,9 @@
       <option value="1">Level 4 parent (default)</option>
       <option value="2">Level 3 parent</option>
       <option value="3">Level 2 parent</option>
-      <option value="4" selected>Goods/Service-providing total</option>
+      <option value="4">Goods/Service-providing total</option>
       <option value="5">Total private / Total government</option>
-      <option value="6">Total nonfarm</option>
+      <option value="6" selected>Total nonfarm</option>
     </select>
   </div>
   <div class="d-flex align-items-center gap-2">
@@ -47,8 +47,8 @@
     <label class="fw-semibold small mb-0" for="window-select">Trend window:</label>
     <select id="window-select" class="form-select form-select-sm" style="width:auto">
       <option value="1">1 month</option>
-      <option value="3">3 months</option>
-      <option value="6" selected>6 months</option>
+      <option value="3" selected>3 months</option>
+      <option value="6">6 months</option>
       <option value="12">12 months</option>
     </select>
   </div>
@@ -448,9 +448,9 @@ function renderAnalysis() {
 function getParams() {
   const p = new URLSearchParams(window.location.search);
   const set    = parseInt(p.get("set"))    || 4;
-  const den    = parseInt(p.get("denom"))  || 4;
+  const den    = parseInt(p.get("denom"))  || 6;
   const met    = parseInt(p.get("method")) || 1;
-  const win    = parseInt(p.get("window")) || 6;
+  const win    = parseInt(p.get("window")) || 3;
   const deriv  = p.get("deriv") === "B" ? "B" : "A";
   const patStr = p.get("pattern") || "";
   const pats   = patStr ? patStr.split(",").map(s => decodeURIComponent(s.trim())).filter(s => PATTERNS.includes(s)) : null;
@@ -481,9 +481,9 @@ function pushParams() {
 
 // ── State ──────────────────────────────────────────────────────────────────
 let currentSet    = 4;
-let currentDenom  = 4;
+let currentDenom  = 6;
 let currentMethod = 1;
-let currentWindow = 6;
+let currentWindow = 3;
 let currentDeriv  = "A";
 
 // ── Init ───────────────────────────────────────────────────────────────────
