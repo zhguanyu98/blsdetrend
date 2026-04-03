@@ -278,7 +278,9 @@ function makeTheadHtml(secId, window, showDenom) {
     return st.col === col ? (st.asc ? "↑" : "↓") : '<span class="text-secondary">⇅</span>';
   }
   const winLabel  = `${window}M share growth`;
-  const pastLabel = window === 3 ? "Avg past 3M growth" : "Past 6M growth";
+  const pastLabel = window === 3
+    ? `Avg past 3M growth<br><small class="text-muted">(t−12 to t−3)</small>`
+    : `Past 6M growth<br><small class="text-muted">(t−12 to t−6)</small>`;
   const denomCol  = showDenom ? `<th class="text-muted">Denominator</th>` : "";
   return `<tr class="text-center align-middle">
     <th class="text-start" style="min-width:200px">Industry</th>
