@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from flask import Flask, abort, render_template, send_file
+from flask import Flask, abort, make_response, render_template, send_file
 
 app = Flask(__name__)
 
@@ -33,20 +33,26 @@ def health():
 
 @app.route("/")
 def index():
-    return render_template(
+    resp = make_response(render_template(
         "index.html",
         rows=_TABLE_DATA["rows"],
         last_label=_TABLE_DATA.get("last_label", ""),
         prev_label=_TABLE_DATA.get("prev_label", ""),
-    )
+    ))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.route("/analysis/")
 def analysis():
-    return render_template("analysis.html",
-                           rows=_TABLE_DATA["rows"],
-                           last_label=_TABLE_DATA.get("last_label", ""),
-                           opt_labels=_TABLE_DATA.get("opt_labels", {}))
+    resp = make_response(render_template(
+        "analysis.html",
+        rows=_TABLE_DATA["rows"],
+        last_label=_TABLE_DATA.get("last_label", ""),
+        opt_labels=_TABLE_DATA.get("opt_labels", {}),
+    ))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.route("/<series_id>/", strict_slashes=False)
