@@ -190,7 +190,15 @@ const CONFIG = {responsive: true, displayModeBar: false};
 
 const BASE_LAYOUT = {
   margin: {t: 20, b: 40, l: 65, r: 20},
-  xaxis: {type: 'date', showgrid: false, tickformat: '%Y'},
+  xaxis: {
+    type: 'date',
+    showgrid: false,
+    tickformat: '%Y',
+    tickformatstops: [
+      { dtickrange: [null, 'M12'], value: '%b %Y' },
+      { dtickrange: ['M12', null], value: '%Y' },
+    ],
+  },
   yaxis: {showgrid: true, gridcolor: '#eee', zeroline: false},
   hovermode: 'x unified',
   legend: {orientation: 'h', y: -0.2},
