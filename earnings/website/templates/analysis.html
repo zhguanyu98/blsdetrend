@@ -245,7 +245,7 @@ function buildPanel(rows, bodyId, countId, state) {
     if (r.series_id === highlightSid) tr.classList.add("highlight-row");
 
     const indent = lvl * 12;
-    const detailHref = `/${r.series_id}/`;
+    const detailHref = `../${r.series_id}/`;
     tr.innerHTML = `
       <td class="industry-name" style="padding-left:${indent}px">
         <a class="industry-link" href="${detailHref}">${r.industry_name}</a>

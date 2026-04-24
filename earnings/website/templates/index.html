@@ -143,8 +143,8 @@ function buildRows(rows) {
     tr.style.display = visibleLevels.has(lvl) ? "" : "none";
 
     const indent = lvl * 12;
-    const detailHref   = `/${r.series_id}/`;
-    const analysisHref = `/analysis/?highlight=${r.series_id}&denom=default&set=1,2,3,4,5,6,7`;
+    const detailHref   = `${r.series_id}/`;
+    const analysisHref = `analysis/?highlight=${r.series_id}&denom=default&set=1,2,3,4,5,6,7`;
 
     tr.innerHTML = `
       <td class="industry-name" style="padding-left:${indent}px">

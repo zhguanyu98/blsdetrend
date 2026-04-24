@@ -29,8 +29,8 @@
 </div>
 
 <div class="mt-3 d-flex gap-4">
-  <a href="/download/{{ series_data.series_id }}" class="small">Download data as CSV</a>
-  <a href="/analysis/?highlight={{ series_data.series_id }}&denom=default&set=1,2,3,4,5,6,7" class="small">&rarr; View in Analysis</a>
+  <a href="../data/{{ series_data.series_id }}_export.csv" class="small">Download data as CSV</a>
+  <a href="../analysis/?highlight={{ series_data.series_id }}&denom=default&set=1,2,3,4,5,6,7" class="small">&rarr; View in Analysis</a>
 </div>
 {% endblock %}
 
@@ -170,7 +170,7 @@ document.querySelectorAll("#benchmarkToggle button").forEach(btn => {
       currentData = DEFAULT_DATA;
     } else {
       if (!altData) {
-        const resp = await fetch(`/data/${SERIES_ID}_alt.json`);
+        const resp = await fetch(`../data/${SERIES_ID}_alt.json`);
         altData = await resp.json();
       }
       currentData = altData;
