@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}BLS Average Weekly Earnings — Homepage{% endblock %}
+{% block title %}BLS Average Hourly Earnings — Homepage{% endblock %}
 
 {% block content %}
 <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
-  <h5 class="mb-0">Average Weekly Earnings by Industry</h5>
+  <h5 class="mb-0">Average Hourly Earnings by Industry</h5>
   <span class="text-muted small">{{ latest_label }}</span>
 
   <!-- Benchmark switcher -->
@@ -41,8 +41,8 @@
           Lvl
           <span class="sort-arrow"></span>
         </th>
-        <th class="sortable" data-col="awe_latest">
-          Avg Weekly Earnings
+        <th class="sortable" data-col="ahe_latest">
+          Avg Hourly Earnings
           <div class="sub-header">(latest month, $)</div>
           <span class="sort-arrow"></span>
         </th>
@@ -151,7 +151,7 @@ function buildRows(rows) {
         <a class="industry-link" href="${detailHref}">${r.industry_name}</a>
       </td>
       <td>${lvl}</td>
-      <td>${fmtDollar(r.awe_latest)}</td>
+      <td>${fmtDollar(r.ahe_latest)}</td>
       <td class="${colorClass(r.avg_yoy_3m)}">${fmtPct(r.avg_yoy_3m)}</td>
       <td class="${colorClass(r.avg_rel_yoy_3m)}">${fmtPct(r.avg_rel_yoy_3m)}</td>
       <td class="text-muted small">${r.benchmark_name}</td>

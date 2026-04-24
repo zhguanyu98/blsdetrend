@@ -1,13 +1,13 @@
 """
-pull_data.py — Pull BLS B-3a average weekly earnings (AWE) data and CPI-U.
+pull_data.py — Pull BLS B-3a average hourly earnings (AHE) data and CPI-U.
 
 Run from the earnings/ directory:
     python pull_data.py
 
 Outputs:
-    b3a_series.csv     — metadata for all AWE series (series_id, industry_code, ...)
+    b3a_series.csv     — metadata for all AHE series (series_id, industry_code, ...)
     b3a_mapping.csv    — b3a_series + display_level, benchmark_id, benchmark_name
-    b3a_wide.csv       — wide-format AWE data (date index × series_id columns)
+    b3a_wide.csv       — wide-format AHE data (date index × series_id columns)
     cpiu.csv           — two columns: date, cpiu
 """
 
@@ -30,9 +30,9 @@ CE_SERIES_URL = "https://download.bls.gov/pub/time.series/ce/ce.series"
 START_YEAR = 2006
 END_YEAR = datetime.now().year
 
-BENCHMARK_TOTAL_PRIVATE = "CES0500000011"
-BENCHMARK_GOODS = "CES0600000011"
-BENCHMARK_SERVICES = "CES0800000011"
+BENCHMARK_TOTAL_PRIVATE = "CES0500000003"
+BENCHMARK_GOODS = "CES0600000003"
+BENCHMARK_SERVICES = "CES0800000003"
 
 # Goods-producing supersector codes
 GOODS_SUPERSECTORS = {10, 15, 20, 25, 30, 35, 40}
@@ -119,7 +119,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; BLS-research/1.0; guanyuzhou9
 
 
 def fetch_ce_series_metadata() -> pd.DataFrame:
-    """Download ce.series metadata file from BLS and filter for AWE series."""
+    """Download ce.series metadata file from BLS and filter for AHE series."""
     print("Downloading ce.series metadata…")
     resp = requests.get(CE_SERIES_URL, timeout=120, headers=HEADERS)
     resp.raise_for_status()
@@ -133,9 +133,9 @@ def fetch_ce_series_metadata() -> pd.DataFrame:
     for col in df.columns:
         df[col] = df[col].str.strip()
 
-    # Filter: data_type_code == 11 (AWE), seasonal == S
+    # Filter: data_type_code == 03 (AHE all employees), seasonal == S
     df = df[
-        (df["data_type_code"] == "11") &
+        (df["data_type_code"] == "03") &
         (df["seasonal"] == "S")
     ].copy()
 
@@ -153,7 +153,7 @@ def fetch_ce_series_metadata() -> pd.DataFrame:
     df["series_title"] = df["series_title"].str.strip()
 
     # Parse industry_name: strip prefix + SA suffix, apply title case
-    prefix = "Average weekly earnings of all employees, "
+    prefix = "Average hourly earnings of all employees, "
     df["industry_name"] = (
         df["series_title"]
         .str.replace(prefix, "", regex=False)
@@ -166,7 +166,7 @@ def fetch_ce_series_metadata() -> pd.DataFrame:
     df = df.reset_index(drop=True)
     df["row_order"] = df.index
 
-    print(f"  Found {len(df)} AWE series (private, seasonally adjusted)")
+    print(f"  Found {len(df)} AHE series (private, seasonally adjusted)")
 
     # Download ce.industry for display_level
     print("Downloading ce.industry hierarchy…")
@@ -246,7 +246,7 @@ def build_mapping(meta_df: pd.DataFrame) -> pd.DataFrame:
 # ── Step 3: Pull time-series data ───────────────────────────────────────────────
 
 def pull_all_series(all_series_ids: list) -> dict:
-    """Batch-fetch all AWE series + CPI-U from BLS API v2."""
+    """Batch-fetch all AHE series + CPI-U from BLS API v2."""
     all_ids = list(all_series_ids) + [CPIU_SERIES]
     # BLS API allows max 20 years per call; window in 10-year chunks if needed
     year_windows = []
@@ -287,7 +287,7 @@ def build_wide_df(series_dict: dict[str, pd.Series], series_ids: list[str]) -> p
 
 
 def main():
-    print("=== BLS B-3a AWE Data Pull ===")
+    print("=== BLS B-3a AHE Data Pull ===")
 
     # 1. Fetch metadata
     meta_df = fetch_ce_series_metadata()
@@ -300,15 +300,15 @@ def main():
     print(f"Saved b3a_mapping.csv ({len(mapping_df)} rows)")
 
     # 3. Pull time-series data
-    awe_ids = mapping_df["series_id"].tolist()
-    print(f"\nPulling {len(awe_ids)} AWE series + CPI-U from BLS API…")
-    all_data = pull_all_series(awe_ids)
+    ahe_ids = mapping_df["series_id"].tolist()
+    print(f"\nPulling {len(ahe_ids)} AHE series + CPI-U from BLS API…")
+    all_data = pull_all_series(ahe_ids)
     print(f"\nReceived data for {len(all_data)} series")
 
-    # 4. Save AWE wide CSV
-    awe_df = build_wide_df(all_data, awe_ids)
-    awe_df.to_csv(HERE / "b3a_wide.csv")
-    print(f"Saved b3a_wide.csv ({len(awe_df)} rows × {len(awe_df.columns)} series)")
+    # 4. Save AHE wide CSV
+    ahe_df = build_wide_df(all_data, ahe_ids)
+    ahe_df.to_csv(HERE / "b3a_wide.csv")
+    print(f"Saved b3a_wide.csv ({len(ahe_df)} rows × {len(ahe_df.columns)} series)")
 
     # 5. Save CPI-U CSV
     if CPIU_SERIES in all_data:

@@ -127,12 +127,12 @@ function fmtPct(v) {
 }
 
 function updateStats(data) {
-  const latestAwe  = getLatestNonNull(data.awe_level);
+  const latestAhe  = getLatestNonNull(data.ahe_level);
   const latestYoy  = getLatestNonNull(data.yoy);
   const latestReal = getLatestNonNull(data.real_yoy);
   document.getElementById("statsLine").innerHTML =
     `Benchmark: <strong>${data.benchmark_name}</strong> &ensp;` +
-    `Latest AWE: <strong>${fmtDollar(latestAwe)}</strong> &ensp;` +
+    `Latest AHE: <strong>${fmtDollar(latestAhe)}</strong> &ensp;` +
     `Nominal YoY: <strong>${fmtPct(latestYoy)}</strong> &ensp;` +
     `Real YoY: <strong>${fmtPct(latestReal)}</strong>`;
 }
@@ -222,17 +222,17 @@ const LAYOUT_BASE = {
 };
 
 function renderCharts(data) {
-  const {dates, awe_level, benchmark_level, yoy, benchmark_yoy,
+  const {dates, ahe_level, benchmark_level, yoy, benchmark_yoy,
          real_yoy, rel_yoy, cpiu_yoy, benchmark_name} = data;
   const pct = v => (v !== null && v !== undefined) ? v * 100 : null;
   const zero = [dates[0], dates[dates.length - 1]];
 
   Plotly.react("plot1", [
-    {x: dates, y: awe_level,       name: "AWE",          type: "scatter", mode: "lines", line: {color: "#1565c0", width: 2}},
+    {x: dates, y: ahe_level,       name: "AHE",          type: "scatter", mode: "lines", line: {color: "#1565c0", width: 2}},
     {x: dates, y: benchmark_level, name: benchmark_name, type: "scatter", mode: "lines", line: {color: "#78909c", width: 1.5, dash: "dash"}},
   ], {...LAYOUT_BASE,
-    title: {text: "Average Weekly Earnings ($)", font: {size: 13}},
-    yaxis: {tickprefix: "$", tickformat: ",.0f"},
+    title: {text: "Average Hourly Earnings ($)", font: {size: 13}},
+    yaxis: {tickprefix: "$", tickformat: ",.2f"},
   });
 
   Plotly.react("plot2", [
