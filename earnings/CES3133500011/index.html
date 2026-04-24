@@ -46,8 +46,8 @@
 </div>
 
 <div class="mt-3 d-flex gap-4">
-  <a href="/download/CES3133500011" class="small">Download data as CSV</a>
-  <a href="/analysis/?highlight=CES3133500011&denom=default&set=1,2,3,4,5,6,7" class="small">&rarr; View in Analysis</a>
+  <a href="../data/CES3133500011_export.csv" class="small">Download data as CSV</a>
+  <a href="../analysis/?highlight=CES3133500011&denom=default&set=1,2,3,4,5,6,7" class="small">&rarr; View in Analysis</a>
 </div>
 
 </div>
@@ -194,7 +194,7 @@ document.querySelectorAll("#benchmarkToggle button").forEach(btn => {
       currentData = DEFAULT_DATA;
     } else {
       if (!altData) {
-        const resp = await fetch(`/data/${SERIES_ID}_alt.json`);
+        const resp = await fetch(`../data/${SERIES_ID}_alt.json`);
         altData = await resp.json();
       }
       currentData = altData;
