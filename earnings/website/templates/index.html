@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}BLS Average Weekly Earnings — Homepage{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+  <h5 class="mb-0">Average Weekly Earnings by Industry</h5>
+  <span class="text-muted small">{{ latest_label }}</span>
+
+  <!-- Benchmark switcher -->
+  <div class="d-flex align-items-center gap-2 ms-auto">
+    <span class="small text-muted">Benchmark:</span>
+    <div class="btn-group btn-group-sm" id="benchmarkToggle" role="group">
+      <button type="button" class="btn btn-outline-secondary active" data-bmark="default">Goods / Services</button>
+      <button type="button" class="btn btn-outline-secondary" data-bmark="alt">Total Private</button>
+    </div>
+  </div>
+</div>
+
+<!-- Level filter -->
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+  <span class="small text-muted me-1">Show levels:</span>
+  {% for lvl in range(1, 8) %}
+  <div class="form-check form-check-inline mb-0">
+    <input class="form-check-input lvl-check" type="checkbox" id="chk{{ lvl }}" value="{{ lvl }}"
+      {% if lvl <= 4 %}checked{% endif %}>
+    <label class="form-check-label small" for="chk{{ lvl }}">{{ lvl }}</label>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="bls-table-wrapper">
+  <table class="table table-sm table-bordered bls-table" id="mainTable">
+    <thead>
+      <tr>
+        <th class="sortable" data-col="industry_name">
+          Industry
+          <span class="sort-arrow"></span>
+        </th>
+        <th class="sortable" data-col="display_level">
+          Lvl
+          <span class="sort-arrow"></span>
+        </th>
+        <th class="sortable" data-col="awe_latest">
+          Avg Weekly Earnings
+          <div class="sub-header">(latest month, $)</div>
+          <span class="sort-arrow"></span>
+        </th>
+        <th class="sortable" data-col="avg_yoy_3m">
+          Nominal YoY Growth
+          <div class="sub-header">(avg past 3 months)</div>
+          <span class="sort-arrow"></span>
+        </th>
+        <th class="sortable" data-col="avg_rel_yoy_3m">
+          Relative YoY Growth
+          <div class="sub-header">(vs benchmark, avg past 3 months)</div>
+          <span class="sort-arrow"></span>
+        </th>
+        <th class="sortable" data-col="benchmark_name">
+          Benchmark
+          <span class="sort-arrow"></span>
+        </th>
+        <th class="sortable" data-col="avg_real_yoy_3m">
+          Real YoY Growth
+          <div class="sub-header">(CPI-U adjusted, avg past 3 months)</div>
+          <span class="sort-arrow"></span>
+        </th>
+        <th>&rarr; Analysis</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.sort-arrow { font-size: 0.7em; color: #aaa; margin-left: 2px; }
+</style>
+<script>
+const ROWS_DEFAULT = {{ rows | tojson }};
+const ROWS_ALT     = {{ rows_alt | tojson }};
+
+let currentBmark = "default";
+let sortCol = null;
+let sortDir = 1;
+let visibleLevels = new Set([1,2,3,4]);
+
+function fmtDollar(v) {
+  if (v === null || v === undefined) return "&mdash;";
+  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function fmtPct(v) {
+  if (v === null || v === undefined) return "&mdash;";
+  return (v * 100).toFixed(2) + "%";
+}
+
+function colorClass(v) {
+  if (v === null || v === undefined) return "";
+  if (Math.abs(v) < 0.001) return "";
+  return v > 0 ? "text-pos" : "text-neg";
+}
+
+function getVal(r, col) {
+  switch (col) {
+    case "industry_name":  return r.industry_name || "";
+    case "benchmark_name": return r.benchmark_name || "";
+    default: {
+      const v = r[col];
+      return (v === null || v === undefined) ? -Infinity : v;
+    }
+  }
+}
+
+function sortedRows(rows) {
+  if (!sortCol) return rows.slice().sort((a, b) => a.row_order - b.row_order);
+  return rows.slice().sort((a, b) => {
+    const av = getVal(a, sortCol);
+    const bv = getVal(b, sortCol);
+    if (typeof av === "string") return av.localeCompare(bv) * sortDir;
+    return (av - bv) * sortDir;
+  });
+}
+
+function buildRows(rows) {
+  const tbody = document.getElementById("tableBody");
+  tbody.innerHTML = "";
+
+  for (const r of sortedRows(rows)) {
+    const lvl = r.display_level;
+    if (lvl === 0) {
+      const tr = document.createElement("tr");
+      tr.className = "lvl-0";
+      tr.innerHTML = `<td class="industry-name" colspan="8" style="padding-left:4px;font-weight:600">${r.industry_name}</td>`;
+      tbody.appendChild(tr);
+      continue;
+    }
+    const tr = document.createElement("tr");
+    tr.className = `lvl-${lvl}`;
+    tr.dataset.lvl = lvl;
+    tr.style.display = visibleLevels.has(lvl) ? "" : "none";
+
+    const indent = lvl * 12;
+    const detailHref   = `/${r.series_id}/`;
+    const analysisHref = `/analysis/?highlight=${r.series_id}&denom=default&set=1,2,3,4,5,6,7`;
+
+    tr.innerHTML = `
+      <td class="industry-name" style="padding-left:${indent}px">
+        <a class="industry-link" href="${detailHref}">${r.industry_name}</a>
+      </td>
+      <td>${lvl}</td>
+      <td>${fmtDollar(r.awe_latest)}</td>
+      <td class="${colorClass(r.avg_yoy_3m)}">${fmtPct(r.avg_yoy_3m)}</td>
+      <td class="${colorClass(r.avg_rel_yoy_3m)}">${fmtPct(r.avg_rel_yoy_3m)}</td>
+      <td class="text-muted small">${r.benchmark_name}</td>
+      <td class="${colorClass(r.avg_real_yoy_3m)}">${fmtPct(r.avg_real_yoy_3m)}</td>
+      <td><a href="${analysisHref}" class="text-decoration-none">&rarr;</a></td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function applyBmark() {
+  buildRows(currentBmark === "default" ? ROWS_DEFAULT : ROWS_ALT);
+}
+
+// Benchmark toggle
+document.querySelectorAll("#benchmarkToggle button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#benchmarkToggle button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentBmark = btn.dataset.bmark;
+    applyBmark();
+  });
+});
+
+// Level filter
+document.querySelectorAll(".lvl-check").forEach(chk => {
+  chk.addEventListener("change", () => {
+    visibleLevels = new Set(
+      [...document.querySelectorAll(".lvl-check:checked")].map(c => parseInt(c.value))
+    );
+    document.querySelectorAll("#tableBody tr[data-lvl]").forEach(tr => {
+      tr.style.display = visibleLevels.has(parseInt(tr.dataset.lvl)) ? "" : "none";
+    });
+  });
+});
+
+// Sorting — all columns; third click resets to BLS row_order
+document.querySelectorAll("th.sortable").forEach(th => {
+  th.addEventListener("click", () => {
+    const col = th.dataset.col;
+    if (sortCol === col) {
+      if (sortDir === 1) {
+        sortDir = -1;
+      } else {
+        sortCol = null;
+        sortDir = 1;
+      }
+    } else {
+      sortCol = col;
+      sortDir = 1;
+    }
+    document.querySelectorAll("th.sortable .sort-arrow").forEach(a => a.textContent = " ⇅");
+    th.querySelector(".sort-arrow").textContent = sortCol ? (sortDir === 1 ? " ▲" : " ▼") : " ⇅";
+    applyBmark();
+  });
+});
+
+document.querySelectorAll("th.sortable .sort-arrow").forEach(a => a.textContent = " ⇅");
+applyBmark();
+</script>
+{% endblock %}

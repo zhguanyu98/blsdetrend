@@ -4,45 +4,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Processes BLS Table B-1a data — 842 seasonally-adjusted employment series — and publishes a website showing employment levels, shares, and detrended measures for each industry.
+Two sites:
+- **Employment** (`employment/`) — BLS Table B-1a, 842 seasonally-adjusted employment series, employment levels/shares/detrended measures
+- **Earnings** (`earnings/`) — BLS Table B-3a, ~500 AWE series, average weekly earnings with YoY growth vs benchmark
 
 ## Key Commands
 
-### Full data pipeline (run in order when source data changes)
+### Employment site (`employment/`)
 ```bash
-# 1. Pull latest BLS data → b1a_wide_seriesid.csv
-jupyter nbconvert --to notebook --execute pull_data.ipynb
+# Pull data
+jupyter nbconvert --to notebook --execute employment/pull_data.ipynb
 
-# 2. Rebuild denominator mapping (only if b1a_mapping_with_parent.csv changes)
-python3 build_mapping.py
+# Rebuild mapping (if b1a_mapping_with_parent.csv changes)
+python3 employment/build_mapping.py
 
-# 3. Regenerate all website data files
-cd website && python3 generate_data.py
+# Regenerate data files
+cd employment/website && python3 generate_data.py
+
+# Run locally (port 5001)
+cd employment/website && flask run --port 5001
 ```
 
-### Run locally
+### Earnings site (`earnings/`)
 ```bash
-cd website
-flask run --port 5001   # port 5000 is taken by macOS AirPlay
-# → http://127.0.0.1:5001
+# 1. Pull latest AWE + CPI-U data
+cd earnings && python pull_data.py
+
+# 2. Regenerate website data
+cd website && python generate_data.py
+
+# 3. Run locally (port 5002)
+flask run --port 5002
+# → http://127.0.0.1:5002
 ```
 
-### Deploy
+### Deploy (both sites)
 ```bash
-git add website/templates/ website/static/ website/generate_data.py \
-        build_mapping.py b1a_mapping_with_denominators.csv b1a_wide_seriesid.csv \
-        website/data/   # only needed if data was regenerated
+git add .
 git commit -m "..."
 git push origin main    # triggers Render.com redeploy + GitHub Pages CI build
 ```
 
-### Build static site (GitHub Pages — normally done by CI)
-```bash
-cd website && python freeze.py   # → website/build/  (843 HTML + 842 CSVs)
-```
+## Source Files
 
-## Source Files (root directory)
-
+### Employment (`employment/`)
 | File | Content |
 |---|---|
 | `b1a_mapping_with_parent.csv` | 842 rows: series_id, industry_name, display_level (0–7), row_order, supersector_code, parent_series_id |
@@ -50,6 +55,15 @@ cd website && python freeze.py   # → website/build/  (843 HTML + 842 CSVs)
 | `b1a_wide_seriesid.csv` | Raw employment (thousands), ~313 months × 842 series, date-indexed — primary input to website |
 | `build_mapping.py` | Reads `b1a_mapping_with_parent.csv` → writes `b1a_mapping_with_denominators.csv` |
 | `pull_data.ipynb` | Calls BLS API → writes `b1a_wide_seriesid.csv`. BLS API key embedded in notebook. |
+
+### Earnings (`earnings/`)
+| File | Content |
+|---|---|
+| `b3a_series.csv` | ~500 AWE series metadata from ce.series |
+| `b3a_mapping.csv` | Above + display_level, benchmark_id, benchmark_name |
+| `b3a_wide.csv` | AWE levels (dollars), date index × series_id columns |
+| `cpiu.csv` | CPI-U index (CUSR0000SA0), date + cpiu columns |
+| `pull_data.py` | Fetches all data from BLS API and writes the above files |
 
 Legacy files are in `legacy/`.
 
@@ -157,7 +171,13 @@ Rising faster (R>0,P>0,D>0) · Rising slower (R>0,P>0,D<0) · Falling slower (R<
 `deriv` param has been removed. Industry set is checkboxes for levels 1–7 (level 0 excluded). Highlight a specific row on load with `?highlight={series_id}`.
 
 ## Deployment
-- **Render.com** (live Flask): `https://blsdetrend.onrender.com` — auto-redeploys on push to `main`; free tier sleeps after 15 min idle
-- **GitHub Pages** (static): `https://zhguanyu98.github.io/blsdetrend/` — CI runs `freeze.py` on every push to `main`, deploys `website/build/` to `gh-pages` branch
-- GitHub repo: `https://github.com/zhguanyu98/blsdetrend`
-- Start command: `gunicorn app:app --bind 0.0.0.0:$PORT` (in `Procfile`)
+
+### Employment site
+- **Render.com**: `https://blsdetrend.onrender.com` — auto-redeploys on push to `main`; `rootDir: employment/website`
+- **GitHub Pages**: `https://zhguanyu98.github.io/blsdetrend/employment/` — CI deploys `employment/website/build/` to `gh-pages/employment/`
+
+### Earnings site
+- **Render.com**: separate Render service; `rootDir: earnings/website`
+- **GitHub Pages**: `https://zhguanyu98.github.io/blsdetrend/earnings/` — CI deploys `earnings/website/build/` to `gh-pages/earnings/`
+
+GitHub repo: `https://github.com/zhguanyu98/blsdetrend`

@@ -9,7 +9,7 @@ permissions:
   contents: write          # needed to push to gh-pages branch
 
 jobs:
-  build-and-deploy:
+  build-employment:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,13 +25,48 @@ jobs:
       - name: Install dependencies
         run: pip install flask Frozen-Flask
 
-      - name: Build static site
-        working-directory: website
+      - name: Build employment static site
+        working-directory: employment/website
         run: python freeze.py
 
-      - name: Deploy to gh-pages branch
+      - name: Deploy employment site to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: website/build
-          force_orphan: true   # keep gh-pages branch lean (no history)
+          publish_dir: employment/website/build
+          destination_dir: employment
+          force_orphan: false
+          keep_files: true
+
+  build-earnings:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install flask Frozen-Flask pandas numpy scipy statsmodels
+
+      - name: Generate earnings data
+        working-directory: earnings/website
+        run: python generate_data.py
+
+      - name: Build earnings static site
+        working-directory: earnings/website
+        run: python freeze.py
+
+      - name: Deploy earnings site to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: earnings/website/build
+          destination_dir: earnings
+          force_orphan: false
+          keep_files: true
