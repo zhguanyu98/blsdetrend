@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}BLS Average Hourly Earnings — Homepage{% endblock %}
+{% block title %}BLS Aggregate Weekly Payroll — Homepage{% endblock %}
 
 {% block content %}
 <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
-  <h5 class="mb-0">Average Hourly Earnings by Industry</h5>
+  <h5 class="mb-0">Aggregate Weekly Payroll by Industry</h5>
   <span class="text-muted small">{{ latest_label }}</span>
 
   <!-- Benchmark switcher -->
@@ -41,9 +41,9 @@
           Lvl
           <span class="sort-arrow"></span>
         </th>
-        <th class="sortable" data-col="ahe_latest">
-          Avg Hourly Earnings
-          <div class="sub-header">(latest month, $)</div>
+        <th class="sortable" data-col="awp_latest">
+          Aggregate Weekly Payroll
+          <div class="sub-header">(latest month, $ millions)</div>
           <span class="sort-arrow"></span>
         </th>
         <th class="sortable" data-col="avg_yoy_3m">
@@ -87,9 +87,9 @@ let sortCol = null;
 let sortDir = 1;
 let visibleLevels = new Set([1,2,3,4]);
 
-function fmtDollar(v) {
+function fmtAwp(v) {
   if (v === null || v === undefined) return "&mdash;";
-  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 1, maximumFractionDigits: 1}) + "M";
 }
 
 function fmtPct(v) {
@@ -151,7 +151,7 @@ function buildRows(rows) {
         <a class="industry-link" href="${detailHref}">${r.industry_name}</a>
       </td>
       <td>${lvl}</td>
-      <td>${fmtDollar(r.ahe_latest)}</td>
+      <td>${fmtAwp(r.awp_latest)}</td>
       <td class="${colorClass(r.avg_yoy_3m)}">${fmtPct(r.avg_yoy_3m)}</td>
       <td class="${colorClass(r.avg_rel_yoy_3m)}">${fmtPct(r.avg_rel_yoy_3m)}</td>
       <td class="text-muted small">${r.benchmark_name}</td>

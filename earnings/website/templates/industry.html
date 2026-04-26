@@ -116,9 +116,9 @@ function getLatestNonNull(arr) {
   return null;
 }
 
-function fmtDollar(v) {
+function fmtAwp(v) {
   if (v === null || v === undefined) return "—";
-  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 1, maximumFractionDigits: 1}) + "M";
 }
 
 function fmtPct(v) {
@@ -127,12 +127,12 @@ function fmtPct(v) {
 }
 
 function updateStats(data) {
-  const latestAhe  = getLatestNonNull(data.ahe_level);
+  const latestAwp  = getLatestNonNull(data.awp_level);
   const latestYoy  = getLatestNonNull(data.yoy);
   const latestReal = getLatestNonNull(data.real_yoy);
   document.getElementById("statsLine").innerHTML =
     `Benchmark: <strong>${data.benchmark_name}</strong> &ensp;` +
-    `Latest AHE: <strong>${fmtDollar(latestAhe)}</strong> &ensp;` +
+    `Latest AWP: <strong>${fmtAwp(latestAwp)}</strong> &ensp;` +
     `Nominal YoY: <strong>${fmtPct(latestYoy)}</strong> &ensp;` +
     `Real YoY: <strong>${fmtPct(latestReal)}</strong>`;
 }
@@ -222,17 +222,17 @@ const LAYOUT_BASE = {
 };
 
 function renderCharts(data) {
-  const {dates, ahe_level, benchmark_level, yoy, benchmark_yoy,
+  const {dates, awp_level, benchmark_level, yoy, benchmark_yoy,
          real_yoy, rel_yoy, cpiu_yoy, benchmark_name} = data;
   const pct = v => (v !== null && v !== undefined) ? v * 100 : null;
   const zero = [dates[0], dates[dates.length - 1]];
 
   Plotly.react("plot1", [
-    {x: dates, y: ahe_level,       name: "AHE",          type: "scatter", mode: "lines", line: {color: "#1565c0", width: 2}},
+    {x: dates, y: awp_level,       name: "AWP",          type: "scatter", mode: "lines", line: {color: "#1565c0", width: 2}},
     {x: dates, y: benchmark_level, name: benchmark_name, type: "scatter", mode: "lines", line: {color: "#78909c", width: 1.5, dash: "dash"}},
   ], {...LAYOUT_BASE,
-    title: {text: "Average Hourly Earnings ($)", font: {size: 13}},
-    yaxis: {tickprefix: "$", tickformat: ",.2f"},
+    title: {text: "Aggregate Weekly Payroll ($ millions)", font: {size: 13}},
+    yaxis: {tickprefix: "$", tickformat: ",.1f", ticksuffix: "M"},
   });
 
   Plotly.react("plot2", [

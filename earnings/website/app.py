@@ -1,5 +1,5 @@
 """
-app.py — Flask application for BLS B-3a Average Hourly Earnings website.
+app.py — Flask application for BLS B-3a Aggregate Weekly Payroll website.
 """
 
 import json

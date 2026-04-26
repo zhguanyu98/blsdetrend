@@ -5,7 +5,7 @@ Run from the earnings/website/ directory:
     python generate_data.py
 
 Inputs (from earnings/):
-    ../b3a_wide.csv      — wide AHE data (date index × series_id columns)
+    ../b3a_wide.csv      — wide AWP data (date index × series_id columns)
     ../b3a_mapping.csv   — series metadata + benchmark assignments
     ../cpiu.csv          — CPI-U monthly index
 
@@ -32,9 +32,9 @@ EARNINGS_DIR = HERE.parent
 DATA_OUT = HERE / "data"
 DATA_OUT.mkdir(exist_ok=True)
 
-BENCHMARK_TOTAL_PRIVATE = "CES0500000003"
-BENCHMARK_GOODS = "CES0600000003"
-BENCHMARK_SERVICES = "CES0800000003"
+BENCHMARK_TOTAL_PRIVATE = "CES0500000057"
+BENCHMARK_GOODS = "CES0600000057"
+BENCHMARK_SERVICES = "CES0800000057"
 
 MIN_OBSERVATIONS = 15  # exclude series with fewer months
 
@@ -50,9 +50,9 @@ def load_data():
         if not p.exists():
             sys.exit(f"ERROR: {p} not found. Run pull_data.py first.")
 
-    awe = pd.read_csv(wide_path, index_col=0)
-    awe.index = awe.index.astype(str)
-    awe = awe.sort_index()
+    awp = pd.read_csv(wide_path, index_col=0)
+    awp.index = awp.index.astype(str)
+    awp = awp.sort_index()
 
     mapping = pd.read_csv(mapping_path, dtype=str)
     mapping["display_level"] = pd.to_numeric(mapping["display_level"], errors="coerce").fillna(0).astype(int)
@@ -62,23 +62,23 @@ def load_data():
     cpiu = pd.read_csv(cpiu_path, dtype={"date": str, "cpiu": float})
     cpiu = cpiu.set_index("date").sort_index()["cpiu"]
 
-    return awe, mapping, cpiu
+    return awp, mapping, cpiu
 
 
 # ── CPI-U lag handling ─────────────────────────────────────────────────────────
 
-def align_cpiu(ahe: pd.DataFrame, cpiu: pd.Series) -> pd.Series:
-    """Align CPI-U to AHE dates, substituting latest available if needed."""
-    ahe_latest = ahe.index[-1]
+def align_cpiu(awp: pd.DataFrame, cpiu: pd.Series) -> pd.Series:
+    """Align CPI-U to AWP dates, substituting latest available if needed."""
+    awp_latest = awp.index[-1]
     cpiu_latest = cpiu.index[-1]
-    if cpiu_latest < ahe_latest:
+    if cpiu_latest < awp_latest:
         print(
-            f"WARNING: CPI-U for {ahe_latest} not available. "
+            f"WARNING: CPI-U for {awp_latest} not available. "
             f"Using {cpiu_latest} as substitute.",
             file=sys.stderr,
         )
         cpiu = cpiu.copy()
-        cpiu[ahe_latest] = cpiu[cpiu_latest]
+        cpiu[awp_latest] = cpiu[cpiu_latest]
         cpiu = cpiu.sort_index()
     return cpiu
 
@@ -134,19 +134,19 @@ def series_to_list(s: pd.Series) -> list:
 
 def compute_industry(
     sid: str,
-    ahe: pd.DataFrame,
+    awp: pd.DataFrame,
     cpiu_aligned: pd.Series,
     benchmark_id: str,
     benchmark_name: str,
 ) -> Optional[dict]:
     """Compute all time-series fields for one industry."""
-    if sid not in ahe.columns:
+    if sid not in awp.columns:
         return None
-    if benchmark_id not in ahe.columns:
+    if benchmark_id not in awp.columns:
         return None
 
-    s = ahe[sid]
-    b = ahe[benchmark_id]
+    s = awp[sid]
+    b = awp[benchmark_id]
 
     # YoY series
     s_yoy = yoy(s)
@@ -160,13 +160,13 @@ def compute_industry(
     else:
         rel_yoy_s = s_yoy - b_yoy
 
-    dates = list(ahe.index)
+    dates = list(awp.index)
     return {
         "series_id": sid,
         "benchmark_id": benchmark_id,
         "benchmark_name": benchmark_name,
         "dates": dates,
-        "ahe_level": series_to_list(s.reindex(dates)),
+        "awp_level": series_to_list(s.reindex(dates)),
         "benchmark_level": series_to_list(b.reindex(dates)),
         "yoy": series_to_list(s_yoy.reindex(dates)),
         "benchmark_yoy": series_to_list(b_yoy.reindex(dates)),
@@ -178,35 +178,35 @@ def compute_industry(
 
 def compute_table_row(
     row: pd.Series,
-    ahe: pd.DataFrame,
+    awp: pd.DataFrame,
     cpiu_aligned: pd.Series,
     override_benchmark_id: Optional[str] = None,
     override_benchmark_name: Optional[str] = None,
 ) -> Optional[dict]:
     """Compute one row's snapshot metrics for table_data.json."""
     sid = row["series_id"]
-    if sid not in ahe.columns:
+    if sid not in awp.columns:
         return None
 
-    s = ahe[sid].dropna()
+    s = awp[sid].dropna()
     if len(s) < MIN_OBSERVATIONS:
         return None
 
     bmark_id = override_benchmark_id or row["benchmark_id"]
     bmark_name = override_benchmark_name or row["benchmark_name"]
 
-    if bmark_id not in ahe.columns:
+    if bmark_id not in awp.columns:
         return None
 
-    b = ahe[bmark_id]
+    b = awp[bmark_id]
 
-    s_yoy = yoy(ahe[sid])
+    s_yoy = yoy(awp[sid])
     b_yoy = yoy(b)
-    cpiu_yoy_s = yoy(cpiu_aligned.reindex(ahe.index))
+    cpiu_yoy_s = yoy(cpiu_aligned.reindex(awp.index))
     real_yoy_s = s_yoy - cpiu_yoy_s
 
     if sid == bmark_id:
-        rel_yoy_s = pd.Series(np.nan, index=ahe.index)
+        rel_yoy_s = pd.Series(np.nan, index=awp.index)
     else:
         rel_yoy_s = s_yoy - b_yoy
 
@@ -217,10 +217,10 @@ def compute_table_row(
     second_d = avg_rel - past_rel
 
     # Latest non-NaN index
-    latest_idx = ahe[sid].last_valid_index()
+    latest_idx = awp[sid].last_valid_index()
     if latest_idx is None:
         return None
-    prev_idx = ahe.index[ahe.index.get_loc(latest_idx) - 1] if ahe.index.get_loc(latest_idx) > 0 else None
+    prev_idx = awp.index[awp.index.get_loc(latest_idx) - 1] if awp.index.get_loc(latest_idx) > 0 else None
 
     def get(series, idx):
         if idx is None or idx not in series.index:
@@ -238,8 +238,8 @@ def compute_table_row(
         "industry_name": row["industry_name"],
         "display_level": int(row["display_level"]),
         "row_order": int(row["row_order"]),
-        "ahe_latest": get(ahe[sid], latest_idx),
-        "ahe_prev": get(ahe[sid], prev_idx) if prev_idx else None,
+        "awp_latest": get(awp[sid], latest_idx),
+        "awp_prev": get(awp[sid], prev_idx) if prev_idx else None,
         "avg_yoy_3m": get(avg_nom, latest_idx),
         "avg_rel_yoy_3m": get(avg_rel, latest_idx),
         "avg_real_yoy_3m": get(avg_real, latest_idx),
@@ -255,15 +255,15 @@ def compute_table_row(
 
 def main():
     print("Loading source data…")
-    ahe, mapping, cpiu = load_data()
+    awp, mapping, cpiu = load_data()
 
-    latest_ahe_date = ahe.index[-1]
-    cpiu_aligned = align_cpiu(ahe, cpiu)
+    latest_awp_date = awp.index[-1]
+    cpiu_aligned = align_cpiu(awp, cpiu)
 
-    # Reindex CPI-U to match AHE dates
-    cpiu_full = cpiu_aligned.reindex(ahe.index)
+    # Reindex CPI-U to match AWP dates
+    cpiu_full = cpiu_aligned.reindex(awp.index)
 
-    print(f"AHE: {len(ahe)} months ({ahe.index[0]} – {ahe.index[-1]}), {len(ahe.columns)} series")
+    print(f"AWP: {len(awp)} months ({awp.index[0]} – {awp.index[-1]}), {len(awp.columns)} series")
     print(f"CPI-U: {len(cpiu)} months")
 
     # ── Generate per-industry JSON files ────────────────────────────────────────
@@ -277,40 +277,40 @@ def main():
         bmark_id = row["benchmark_id"]
         bmark_name = row["benchmark_name"]
 
-        if sid not in ahe.columns:
+        if sid not in awp.columns:
             n_skip += 1
             continue
 
         # Default benchmark JSON
-        detail_default = compute_industry(sid, ahe, cpiu_full, bmark_id, bmark_name)
+        detail_default = compute_industry(sid, awp, cpiu_full, bmark_id, bmark_name)
         if detail_default:
             out_path = DATA_OUT / f"{sid}.json"
             with open(out_path, "w") as f:
                 json.dump(detail_default, f, separators=(",", ":"))
 
         # Alt benchmark JSON (Total Private override)
-        detail_alt = compute_industry(sid, ahe, cpiu_full, BENCHMARK_TOTAL_PRIVATE, "Total Private")
+        detail_alt = compute_industry(sid, awp, cpiu_full, BENCHMARK_TOTAL_PRIVATE, "Total Private")
         if detail_alt:
             out_path = DATA_OUT / f"{sid}_alt.json"
             with open(out_path, "w") as f:
                 json.dump(detail_alt, f, separators=(",", ":"))
 
         # Export CSV
-        s_data = ahe[sid] if sid in ahe.columns else None
-        b_data = ahe[bmark_id] if bmark_id in ahe.columns else None
+        s_data = awp[sid] if sid in awp.columns else None
+        b_data = awp[bmark_id] if bmark_id in awp.columns else None
         if s_data is not None and b_data is not None:
-            s_yoy_vals = yoy(ahe[sid])
+            s_yoy_vals = yoy(awp[sid])
             b_yoy_vals = yoy(b_data)
             cpiu_yoy_vals = yoy(cpiu_full)
             real_yoy_vals = s_yoy_vals - cpiu_yoy_vals
-            rel_yoy_vals = s_yoy_vals - b_yoy_vals if sid != bmark_id else pd.Series(np.nan, index=ahe.index)
+            rel_yoy_vals = s_yoy_vals - b_yoy_vals if sid != bmark_id else pd.Series(np.nan, index=awp.index)
 
             csv_path = DATA_OUT / f"{sid}_export.csv"
             with open(csv_path, "w", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(["date", "ahe_level", "benchmark_level", "yoy",
+                writer.writerow(["date", "awp_level", "benchmark_level", "yoy",
                                  "benchmark_yoy", "real_yoy", "rel_yoy", "cpiu_yoy"])
-                for d in ahe.index:
+                for d in awp.index:
                     writer.writerow([
                         d,
                         nan_to_none(s_data.get(d)),
@@ -325,29 +325,29 @@ def main():
         n_detail += 1
 
         # Table rows
-        tr_default = compute_table_row(row, ahe, cpiu_full)
+        tr_default = compute_table_row(row, awp, cpiu_full)
         if tr_default:
             table_rows_default.append(tr_default)
 
         tr_alt = compute_table_row(
-            row, ahe, cpiu_full,
+            row, awp, cpiu_full,
             override_benchmark_id=BENCHMARK_TOTAL_PRIVATE,
             override_benchmark_name="Total Private",
         )
         if tr_alt:
             table_rows_alt.append(tr_alt)
 
-    print(f"Generated detail pages for {n_detail} series ({n_skip} skipped — not in AHE data)")
+    print(f"Generated detail pages for {n_detail} series ({n_skip} skipped — not in AWP data)")
 
-    # Determine latest_label from most recent AHE date
+    # Determine latest_label from most recent AWP date
     try:
         import datetime as dt
-        d = dt.datetime.strptime(latest_ahe_date, "%Y-%m")
+        d = dt.datetime.strptime(latest_awp_date, "%Y-%m")
         latest_label = d.strftime("%B %Y")
         prev_d = d.replace(day=1) - dt.timedelta(days=1)
         prev_label = prev_d.strftime("%B %Y")
     except Exception:
-        latest_label = latest_awe_date
+        latest_label = latest_awp_date
         prev_label = ""
 
     # ── Write table_data.json ────────────────────────────────────────────────────
