@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Two parallel BLS data sites in the same repo, same architecture, separate deployments:
 
 - **Employment** (`employment/`) — BLS Table B-1a, 842 seasonally-adjusted employment series, employment levels/shares/detrended measures
-- **Earnings** (`earnings/`) — BLS Table B-3a, ~549 AWE (average weekly earnings) series, YoY growth vs benchmark
+- **Earnings** (`earnings/`) — BLS Table B-3a, ~549 AWP (aggregate weekly payroll, data type 57) series, YoY growth vs benchmark
 
 Both follow the same pattern: a data pipeline writes pre-computed JSON to `website/data/`, Flask serves it with no pandas/numpy at runtime, and Frozen-Flask builds a static site for GitHub Pages.
 
@@ -47,11 +47,11 @@ git push origin main    # triggers Render.com redeploy + GitHub Actions → GitH
 ### Earnings (`earnings/`)
 | File | Content |
 |---|---|
-| `b3a_series.csv` | ~549 AWE series metadata from BLS `ce.series` |
+| `b3a_series.csv` | ~549 AWP series metadata from BLS `ce.series` |
 | `b3a_mapping.csv` | Above + display_level (from `ce.industry`), benchmark_id, benchmark_name |
-| `b3a_wide.csv` | AWE levels (dollars), date index × series_id columns, ~241 months |
+| `b3a_wide.csv` | AWP levels ($ thousands), date index × series_id columns, ~241 months |
 | `cpiu.csv` | CPI-U index (CUSR0000SA0), date + cpiu columns |
-| `pull_data.py` | Single script: fetches `ce.series`, `ce.industry`, all AWE series + CPI-U; writes all four files above |
+| `pull_data.py` | Single script: fetches `ce.series`, `ce.industry`, all AWP series + CPI-U; writes all four files above |
 
 ---
 
@@ -138,16 +138,18 @@ Special cases (applied first): Total nonfarm → itself; Total private → Total
 Every series has a **default benchmark** (Goods-producing or Private service-providing, assigned in `pull_data.py`) and an **alt benchmark** (always Total Private). The homepage and analysis page carry both datasets (`ROWS_DEFAULT` / `ROWS_ALT`) as inline JS; switching is client-side. Per-industry detail pages load `{series_id}.json` (default) and fetch `{series_id}_alt.json` lazily on first toggle.
 
 Benchmark assignment in `pull_data.py`:
-- Goods supersectors `{10,15,20,25,30,35,40}` → `CES0600000011` (Goods-producing)
-- Service supersectors `{41,42,43,44,50,55,60,65,70,75,80,85}` → `CES0800000011` (Private service-providing)
-- Goods/Service-providing series themselves → `CES0500000011` (Total Private)
+- Goods supersectors `{10,15,20,25,30,31,32,35}` → `CES0600000057` (Goods-producing)
+- Service supersectors `{40,41,42,43,44,50,55,60,65,70,75,80,85}` → `CES0800000057` (Private service-providing)
+- Goods/Service-providing series themselves → `CES0500000057` (Total Private)
 - Fallback → Total Private
 
 `display_level` is pulled directly from the BLS `ce.industry` file (joined on `industry_code`) — not derived algorithmically.
 
+**Series title prefix**: BLS titles are formatted as `"Aggregate weekly payrolls of all employees, thousands, <industry>, seasonally adjusted"`. The prefix stripped in `pull_data.py` is `"Aggregate weekly payrolls of all employees, thousands, "` (includes the word "thousands" — omitting it causes every name to start with "Thousands,").
+
 ### `generate_data.py` — computation
 Core series computed per industry per month:
-- `yoy(t)` = `(AWE[t] − AWE[t-12]) / AWE[t-12]`
+- `yoy(t)` = `(AWP[t] − AWP[t-12]) / AWP[t-12]`
 - `avg_yoy_3m` = mean of yoy(t), yoy(t-1), yoy(t-2)
 - `real_yoy` = yoy − cpiu_yoy (BLS methodology)
 - `rel_yoy` = yoy − benchmark_yoy
@@ -155,7 +157,7 @@ Core series computed per industry per month:
 - `past_rel_yoy` = mean of rel_yoy(t-3)…rel_yoy(t-12) (10 months)
 - `second_deriv` = avg_rel_yoy_3m − past_rel_yoy
 
-CPI-U lag: if latest AWE month has no CPI-U yet, substitutes most recent available and logs a warning.
+CPI-U lag: if latest AWP month has no CPI-U yet, substitutes most recent available and logs a warning.
 
 Series with fewer than 15 observations are excluded from `table_data.json`.
 
@@ -163,7 +165,7 @@ Series with fewer than 15 observations are excluded from `table_data.json`.
 ```json
 {
   "series_id", "industry_name", "display_level", "row_order",
-  "awe_latest", "awe_prev",
+  "awp_latest", "awp_prev",
   "avg_yoy_3m", "avg_rel_yoy_3m", "avg_real_yoy_3m",
   "benchmark_id", "benchmark_name",
   "second_deriv", "past_rel_yoy",
@@ -176,7 +178,7 @@ Series with fewer than 15 observations are excluded from `table_data.json`.
 {
   "series_id", "benchmark_id", "benchmark_name",
   "dates": ["YYYY-MM", ...],
-  "awe_level": [...], "benchmark_level": [...],
+  "awp_level": [...], "benchmark_level": [...],
   "yoy": [...], "benchmark_yoy": [...],
   "real_yoy": [...], "rel_yoy": [...], "cpiu_yoy": [...]
 }
@@ -196,8 +198,8 @@ All arrays are parallel and date-aligned. `industry_name` is not in the JSON —
 Pattern colors (used in both buttons and table text): Accelerating Above `#2e7d32` · Decelerating Above `#81c784` · Reversal Up `#00897b` · Accelerating Below `#c62828` · Decelerating Below `#ef9a9a` · Reversal Down `#e65100`.
 
 ### Industry detail page (`industry.html`)
-4 charts in a 2×2 CSS grid (Plotly), all with linked x-axis zoom via `plotly_relayout` + `isSyncing` flag:
-1. Raw AWE level ($) — industry vs benchmark
+4 charts in a 2×2 CSS grid (Plotly), all with linked x-axis zoom via a **dual-handle range slider** (two overlapping `position:absolute` range inputs). Do NOT use `plotly_relayout` event listeners for zoom sync — that causes feedback loops and page freeze. The slider calls `Plotly.relayout` directly on all 4 charts via `applyZoomToAll()`.
+1. AWP level ($ thousands) — industry only (no benchmark; benchmark scale is incomparable)
 2. Nominal YoY growth (%) — industry vs benchmark
 3. Real YoY growth (%) — industry vs CPI-U inflation
 4. Relative YoY vs benchmark (%) — with green/red fill above/below zero
