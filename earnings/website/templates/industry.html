@@ -118,7 +118,7 @@ function getLatestNonNull(arr) {
 
 function fmtAwp(v) {
   if (v === null || v === undefined) return "—";
-  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 1, maximumFractionDigits: 1}) + "M";
+  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 0, maximumFractionDigits: 0});
 }
 
 function fmtPct(v) {
@@ -228,11 +228,10 @@ function renderCharts(data) {
   const zero = [dates[0], dates[dates.length - 1]];
 
   Plotly.react("plot1", [
-    {x: dates, y: awp_level,       name: "AWP",          type: "scatter", mode: "lines", line: {color: "#1565c0", width: 2}},
-    {x: dates, y: benchmark_level, name: benchmark_name, type: "scatter", mode: "lines", line: {color: "#78909c", width: 1.5, dash: "dash"}},
+    {x: dates, y: awp_level, name: "AWP", type: "scatter", mode: "lines", line: {color: "#1565c0", width: 2}},
   ], {...LAYOUT_BASE,
-    title: {text: "Aggregate Weekly Payroll ($ millions)", font: {size: 13}},
-    yaxis: {tickprefix: "$", tickformat: ",.1f", ticksuffix: "M"},
+    title: {text: "Aggregate Weekly Payroll ($ thousands)", font: {size: 13}},
+    yaxis: {tickprefix: "$", tickformat: ",.0f"},
   });
 
   Plotly.react("plot2", [

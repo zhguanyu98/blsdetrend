@@ -161,7 +161,7 @@ def fetch_ce_series_metadata() -> pd.DataFrame:
     df["series_title"] = df["series_title"].str.strip()
 
     # Parse industry_name: strip prefix + SA suffix, apply title case
-    prefix = "Aggregate weekly payrolls of all employees, "
+    prefix = "Aggregate weekly payrolls of all employees, thousands, "
     df["industry_name"] = (
         df["series_title"]
         .str.replace(prefix, "", regex=False)

@@ -43,7 +43,7 @@
         </th>
         <th class="sortable" data-col="awp_latest">
           Aggregate Weekly Payroll
-          <div class="sub-header">(latest month, $ millions)</div>
+          <div class="sub-header">(latest month, $ thousands)</div>
           <span class="sort-arrow"></span>
         </th>
         <th class="sortable" data-col="avg_yoy_3m">
@@ -89,7 +89,7 @@ let visibleLevels = new Set([1,2,3,4]);
 
 function fmtAwp(v) {
   if (v === null || v === undefined) return "&mdash;";
-  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 1, maximumFractionDigits: 1}) + "M";
+  return "$" + v.toLocaleString("en-US", {minimumFractionDigits: 0, maximumFractionDigits: 0});
 }
 
 function fmtPct(v) {
