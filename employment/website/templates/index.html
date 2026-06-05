@@ -32,8 +32,9 @@
         <th>{{ prev_label }}<br><small class="text-muted">(000s)</small></th>
         <th>Share<br><small class="text-muted">% of denom</small></th>
         <th data-sort-col="share-growth" class="sortable-col" style="cursor:pointer" title="Click to sort">3M share growth<br><small class="text-muted">%</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
-        <th data-sort-col="dev-ls" class="sortable-col" style="cursor:pointer" title="Click to sort">Dev. Log Share<br><small class="text-muted">(linear)</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
-        <th data-sort-col="dev-hp" class="sortable-col" style="cursor:pointer" title="Click to sort">Dev. Log Share<br><small class="text-muted">(HP filter)</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
+        <th data-sort-col="apr-prelim" class="sortable-col" style="cursor:pointer" title="Click to sort">Apr 2026<br><small class="text-muted">Preliminary (000s)</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
+        <th data-sort-col="revision" class="sortable-col" style="cursor:pointer" title="Click to sort">Revision<br><small class="text-muted">revised − prelim</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
+        <th data-sort-col="revision-pct" class="sortable-col" style="cursor:pointer" title="Click to sort">Revision %<br><small class="text-muted">% of prelim</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
         <th>Denominator</th>
         <th title="View in Analysis page">→</th>
       </tr>
@@ -42,7 +43,10 @@
       {% for row in rows %}
       {% set lvl = row.display_level %}
       <tr class="lvl-{{ lvl }}{% if lvl == 0 %} table-dark fw-bold{% elif lvl == 1 %} table-secondary fw-semibold{% elif lvl == 2 %} fw-semibold{% endif %}"
-          data-sid="{{ row.series_id }}" data-lvl="{{ lvl }}">
+          data-sid="{{ row.series_id }}" data-lvl="{{ lvl }}"
+          data-apr-prelim="{{ row.apr2026_preliminary if row.apr2026_preliminary is not none else '' }}"
+          data-revision="{{ row.revision if row.revision is not none else '' }}"
+          data-revision-pct="{{ row.revision_pct if row.revision_pct is not none else '' }}">
         <td class="industry-name" style="padding-left: {{ lvl * 16 + 8 }}px">
           <a href="{{ url_for('industry', series_id=row.series_id) }}" class="text-decoration-none industry-link {% if lvl <= 1 %}text-reset{% endif %} js-industry-link">
             {{ row.industry_name }}
@@ -58,8 +62,9 @@
         <!-- denom-reactive cells -->
         <td class="text-end td-share"></td>
         <td class="text-end td-share-growth"></td>
-        <td class="text-end td-dev-ls"></td>
-        <td class="text-end td-dev-hp"></td>
+        <td class="text-end td-apr-prelim">{% if row.apr2026_preliminary is not none %}{{ "{:,.1f}".format(row.apr2026_preliminary) }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end td-revision"></td>
+        <td class="text-end td-revision-pct"></td>
         <td class="small text-muted td-denom-name"></td>
         <td class="text-center td-analysis-link"></td>
       </tr>
@@ -74,8 +79,13 @@
 // ── Embed all rows' options data ───────────────────────────────────────────
 let sortState = { col: null, dir: null };
 const ROW_OPTS = {};
+const ROW_REVISION = {};
 {% for row in rows %}
 ROW_OPTS[{{ row.series_id | tojson }}] = {{ row.opts | tojson }};
+ROW_REVISION[{{ row.series_id | tojson }}] = {
+  revision: {{ row.revision | tojson }},
+  revision_pct: {{ row.revision_pct | tojson }}
+};
 {% endfor %}
 
 const OPT_DESCS = {
@@ -113,6 +123,20 @@ function fmtPct(v, dp) {
   return `<span class="${cls}">${pct >= 0 ? "+" : ""}${pct.toFixed(dp)}%</span>`;
 }
 
+function fmtRevision(v, dp) {
+  if (v === null || v === undefined) return '<span class="text-muted">—</span>';
+  const cls = v > 0 ? "text-success" : v < 0 ? "text-danger" : "";
+  const sign = v > 0 ? "+" : "";
+  return `<span class="${cls}">${sign}${v.toFixed(dp)}</span>`;
+}
+
+function fmtRevisionPct(v, dp) {
+  if (v === null || v === undefined || !isFinite(v)) return '<span class="text-muted">—</span>';
+  const pct = v * 100;
+  const cls = pct > 0 ? "text-success" : pct < 0 ? "text-danger" : "";
+  return `<span class="${cls}">${pct >= 0 ? "+" : ""}${pct.toFixed(dp)}%</span>`;
+}
+
 function applyOpt(opt) {
   document.getElementById("denom-select").value = opt;
   document.getElementById("denom-desc").textContent = OPT_DESCS[opt] || "";
@@ -136,13 +160,16 @@ function applyOpt(opt) {
       tr.dataset.shareGrowth = growthVal != null ? String(growthVal) : '';
     }
 
-    // Dev log share (linear)
-    const tdLs = tr.querySelector(".td-dev-ls");
-    if (tdLs) tdLs.innerHTML = fmtVal(o.dev_log_share, 3);
+    // Revision columns (option-independent, rendered once per row)
+    const rdata = ROW_REVISION[sid] || {};
+    const tdRev = tr.querySelector(".td-revision");
+    if (tdRev) tdRev.innerHTML = fmtRevision(rdata.revision, 1);
+    const tdRevPct = tr.querySelector(".td-revision-pct");
+    if (tdRevPct) tdRevPct.innerHTML = fmtRevisionPct(rdata.revision_pct, 2);
 
-    // Dev log share (HP)
-    const tdHp = tr.querySelector(".td-dev-hp");
-    if (tdHp) tdHp.innerHTML = fmtVal(o.dev_log_share_hp, 3);
+    // Store as data attributes for sorting
+    tr.dataset.revision    = rdata.revision    != null ? String(rdata.revision)    : '';
+    tr.dataset.revisionPct = rdata.revision_pct != null ? String(rdata.revision_pct) : '';
 
     // Denominator name
     const tdDn = tr.querySelector(".td-denom-name");
@@ -156,9 +183,8 @@ function applyOpt(opt) {
       tdAl.innerHTML = `<a href="analysis/?highlight=${encodeURIComponent(sid)}&denom=${opt}${setParam}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="View in Analysis page">→</a>`;
     }
 
-    // Store values as data attributes for sorting
-    tr.dataset.devLs = o.dev_log_share != null ? String(o.dev_log_share) : '';
-    tr.dataset.devHp = o.dev_log_share_hp != null ? String(o.dev_log_share_hp) : '';
+    // Apr-prelim sort attribute (static, set from Jinja)
+    // (already in DOM from Jinja; we just ensure shareGrowth is updated)
 
     // Update industry link to carry denom param
     const link = tr.querySelector(".js-industry-link");
@@ -186,7 +212,7 @@ document.getElementById("denom-select").addEventListener("change", function() {
 const tbody = document.querySelector('#bls-main-table tbody');
 const origOrder = Array.from(tbody.querySelectorAll('tr[data-sid]'));
 
-const KEY_MAP = { 'share-growth': 'shareGrowth', 'dev-ls': 'devLs', 'dev-hp': 'devHp' };
+const KEY_MAP = { 'share-growth': 'shareGrowth', 'apr-prelim': 'aprPrelim', 'revision': 'revision', 'revision-pct': 'revisionPct' };
 
 function applySortIcons() {
   document.querySelectorAll('th[data-sort-col]').forEach(th => {

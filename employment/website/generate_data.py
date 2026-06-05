@@ -29,8 +29,10 @@ BASE     = Path(__file__).parent.parent
 DATA_OUT = Path(__file__).parent / "data"
 DATA_OUT.mkdir(exist_ok=True)
 
-MAPPING_FILE = BASE / "b1a_mapping_with_denominators.csv"
-EMP_FILE     = BASE / "b1a_wide_seriesid.csv"
+MAPPING_FILE    = BASE / "b1a_mapping_with_denominators.csv"
+EMP_FILE        = BASE / "b1a_wide_seriesid.csv"
+EMP_PREREVIS    = BASE / "b1a_wide_seriesid_pre_revision_2026_04.csv"
+APR2026_DATE    = pd.Timestamp("2026-04-01")
 
 OPT_LABELS = {
     1: "Level 4 parent (default)",
@@ -134,6 +136,15 @@ mapping = mapping.sort_values("row_order").reset_index(drop=True)
 
 emp       = pd.read_csv(EMP_FILE, index_col=0, parse_dates=True)
 all_dates = emp.index
+
+# Load pre-revision April 2026 snapshot for revision comparison
+if EMP_PREREVIS.exists():
+    emp_pre = pd.read_csv(EMP_PREREVIS, index_col=0, parse_dates=True)
+    apr2026_pre = emp_pre.loc[APR2026_DATE] if APR2026_DATE in emp_pre.index else None
+else:
+    apr2026_pre = None
+
+apr2026_revised = emp.loc[APR2026_DATE] if APR2026_DATE in emp.index else None
 date_strs = [d.strftime("%Y-%m-%d") for d in all_dates]
 n_dates   = len(all_dates)
 
@@ -354,6 +365,15 @@ for _, mrow in mapping.iterrows():
             "dev_raw_share_pct_covid":  peak_covid_scalar(resid_rs_np, covid_idxs),
         }
 
+    # April 2026 revision fields
+    pre_val  = to_float(apr2026_pre[sid])  if (apr2026_pre  is not None and sid in apr2026_pre.index)  else None
+    rev_val  = to_float(apr2026_revised[sid]) if (apr2026_revised is not None and sid in apr2026_revised.index) else None
+    revision = (round(rev_val - pre_val, 6) if (pre_val is not None and rev_val is not None) else None)
+    if pre_val is not None and rev_val is not None and pre_val != 0:
+        revision_pct = round((rev_val - pre_val) / pre_val, 6)
+    else:
+        revision_pct = None
+
     rows.append({
         "series_id":           sid,
         "industry_name":       name,
@@ -365,6 +385,10 @@ for _, mrow in mapping.iterrows():
         "dev_log_level":       last_nonnan3(r["resid_ll"]),
         **{f"dev_log_level{k}": ll_snaps[k] for k in ll_snaps},
         "dev_log_level_covid": ll_covid,
+        "apr2026_preliminary": pre_val,
+        "apr2026_revised":     rev_val,
+        "revision":            revision,
+        "revision_pct":        revision_pct,
         "opts":                opts_summary,
     })
 
