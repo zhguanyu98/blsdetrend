@@ -40,7 +40,8 @@ git push origin main    # triggers Render.com redeploy + GitHub Actions → GitH
 |---|---|
 | `b1a_mapping_with_parent.csv` | 842 rows: series_id, industry_name, display_level (0–7), row_order, supersector_code, parent_series_id |
 | `b1a_mapping_with_denominators.csv` | Above + `denominator_opt{1-6}` and `denominator_opt{1-6}_name` — primary input to website |
-| `b1a_wide_seriesid.csv` | Raw employment (thousands), ~313 months × 842 series, date-indexed |
+| `b1a_wide_seriesid.csv` | Raw employment (thousands), ~317 months × 842 series, date-indexed (current: through May 2026) |
+| `b1a_wide_seriesid_pre_revision_2026_04.csv` | Snapshot of `b1a_wide_seriesid.csv` taken before the May 2026 release; preserves pre-revision April 2026 values (e.g. Total Nonfarm = 158,736k vs revised 158,829k) |
 | `build_mapping.py` | Reads `b1a_mapping_with_parent.csv` → writes `b1a_mapping_with_denominators.csv` |
 | `pull_data.ipynb` | Calls BLS API → writes `b1a_wide_seriesid.csv` |
 
@@ -49,7 +50,7 @@ git push origin main    # triggers Render.com redeploy + GitHub Actions → GitH
 |---|---|
 | `b3a_series.csv` | ~549 AWP series metadata from BLS `ce.series` |
 | `b3a_mapping.csv` | Above + display_level (from `ce.industry`), benchmark_id, benchmark_name |
-| `b3a_wide.csv` | AWP levels ($ thousands), date index × series_id columns, ~241 months |
+| `b3a_wide.csv` | AWP levels ($ thousands), date index × series_id columns, ~243 months (current: through May 2026) |
 | `cpiu.csv` | CPI-U index (CUSR0000SA0), date + cpiu columns |
 | `pull_data.py` | Single script: fetches `ce.series`, `ce.industry`, all AWP series + CPI-U; writes all four files above |
 
@@ -76,6 +77,7 @@ git push origin main    # triggers Render.com redeploy + GitHub Actions → GitH
 ```
 emp_recent, emp_prev, display_level, series_id, industry_name
 dev_log_level, dev_log_level_{1,3,6,9,12,15}m, dev_log_level_covid   ← option-independent
+apr2026_preliminary, apr2026_revised, revision, revision_pct          ← option-independent revision fields
 
 opts["1"…"6"]: {
   share, share_pct, share_{1,3,6,9,12,15}m, share_covid, denom_name,
@@ -85,6 +87,8 @@ opts["1"…"6"]: {
 }
 ```
 `share_covid` = share at the dynamically identified COVID shock month (max |MoM share change| in Mar–May 2020).
+
+Revision fields: loaded from `b1a_wide_seriesid_pre_revision_2026_04.csv` (pre-revision snapshot) vs. current `b1a_wide_seriesid.csv`. `revision = revised − preliminary`; `revision_pct = revision / preliminary` (null if preliminary is 0 or missing).
 
 ### Per-industry JSON (`{series_id}.json`)
 ```
@@ -96,6 +100,11 @@ options["1"…"6"]: {
   denom_name, denom_id
 }
 ```
+
+### Homepage table columns
+Static: Industry, Lvl, latest month (000s), prev month (000s), Share (% of denom), 3M share growth, Apr 2026 Preliminary (000s), Revision (revised − prelim, color-coded), Revision % (%, color-coded), Denominator, → Analysis.
+The last column links to the analysis page pre-filtered to that industry.
+Removed in May 2026 update: Dev. Log Share (linear) and Dev. Log Share (HP filter) — data still generated in `generate_data.py`, just not displayed on homepage.
 
 ### 8 charts per industry page (4 rows × 2 cols)
 - Row 1: Log-linear **level** — actual vs. trend; log deviation (option-independent)
@@ -136,6 +145,8 @@ Special cases (applied first): Total nonfarm → itself; Total private → Total
 
 ### Benchmark system
 Every series has a **default benchmark** (Goods-producing or Private service-providing, assigned in `pull_data.py`) and an **alt benchmark** (always Total Private). The homepage and analysis page carry both datasets (`ROWS_DEFAULT` / `ROWS_ALT`) as inline JS; switching is client-side. Per-industry detail pages load `{series_id}.json` (default) and fetch `{series_id}_alt.json` lazily on first toggle.
+
+**Navbar/title**: The "B-3a" table code was removed from `base.html` in the May 2026 update. The navbar subtitle now reads "Aggregate Weekly Payroll, Private Nonfarm" (no table code prefix); the default page `<title>` is "BLS Aggregate Weekly Payroll".
 
 Benchmark assignment in `pull_data.py`:
 - Goods supersectors `{10,15,20,25,30,31,32,35}` → `CES0600000057` (Goods-producing)

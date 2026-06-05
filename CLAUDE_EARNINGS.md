@@ -1,5 +1,9 @@
 # CLAUDE_EARNINGS.md
 
+> **OBSOLETE BUILD SPEC** — This file was the original construction brief used to build the earnings site. The site is now live. For current architecture, data structures, and commands, see `CLAUDE.md` instead.
+>
+> Key divergences from this spec: the live site uses **Aggregate Weekly Payroll (AWP, data type 57)** not AWE (data type 11); series IDs end in `...057` not `...011`; the benchmark series are `CES0600000057` / `CES0800000057` / `CES0500000057`. Steps 1–9 below describe the original intent; Step 10 captures corrections applied during construction.
+
 This file provides instructions to Claude Code for building the BLS Earnings website (`earnings/`), a new site tracking average weekly earnings (AWE) from BLS Table B-3a. Read this file fully before writing any code.
 
 ---
