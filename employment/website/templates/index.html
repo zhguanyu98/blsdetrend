@@ -32,7 +32,7 @@
         <th>{{ prev_label }}<br><small class="text-muted">(000s)</small></th>
         <th>Share<br><small class="text-muted">% of denom</small></th>
         <th data-sort-col="share-growth" class="sortable-col" style="cursor:pointer" title="Click to sort">3M share growth<br><small class="text-muted">%</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
-        <th data-sort-col="apr-prelim" class="sortable-col" style="cursor:pointer" title="Click to sort">Apr 2026<br><small class="text-muted">Preliminary (000s)</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
+        <th data-sort-col="apr-prelim" class="sortable-col" style="cursor:pointer" title="Click to sort">May 2026<br><small class="text-muted">Preliminary (000s)</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
         <th data-sort-col="revision" class="sortable-col" style="cursor:pointer" title="Click to sort">Revision<br><small class="text-muted">revised − prelim</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
         <th data-sort-col="revision-pct" class="sortable-col" style="cursor:pointer" title="Click to sort">Revision %<br><small class="text-muted">% of prelim</small><span class="sort-icon ms-1 text-secondary">⇅</span></th>
         <th>Denominator</th>
@@ -44,7 +44,7 @@
       {% set lvl = row.display_level %}
       <tr class="lvl-{{ lvl }}{% if lvl == 0 %} table-dark fw-bold{% elif lvl == 1 %} table-secondary fw-semibold{% elif lvl == 2 %} fw-semibold{% endif %}"
           data-sid="{{ row.series_id }}" data-lvl="{{ lvl }}"
-          data-apr-prelim="{{ row.apr2026_preliminary if row.apr2026_preliminary is not none else '' }}"
+          data-apr-prelim="{{ row.may2026_preliminary if row.may2026_preliminary is not none else '' }}"
           data-revision="{{ row.revision if row.revision is not none else '' }}"
           data-revision-pct="{{ row.revision_pct if row.revision_pct is not none else '' }}">
         <td class="industry-name" style="padding-left: {{ lvl * 16 + 8 }}px">
@@ -62,7 +62,7 @@
         <!-- denom-reactive cells -->
         <td class="text-end td-share"></td>
         <td class="text-end td-share-growth"></td>
-        <td class="text-end td-apr-prelim">{% if row.apr2026_preliminary is not none %}{{ "{:,.1f}".format(row.apr2026_preliminary) }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end td-apr-prelim">{% if row.may2026_preliminary is not none %}{{ "{:,.1f}".format(row.may2026_preliminary) }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
         <td class="text-end td-revision"></td>
         <td class="text-end td-revision-pct"></td>
         <td class="small text-muted td-denom-name"></td>

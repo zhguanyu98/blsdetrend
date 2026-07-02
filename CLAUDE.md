@@ -40,8 +40,8 @@ git push origin main    # triggers Render.com redeploy + GitHub Actions → GitH
 |---|---|
 | `b1a_mapping_with_parent.csv` | 842 rows: series_id, industry_name, display_level (0–7), row_order, supersector_code, parent_series_id |
 | `b1a_mapping_with_denominators.csv` | Above + `denominator_opt{1-6}` and `denominator_opt{1-6}_name` — primary input to website |
-| `b1a_wide_seriesid.csv` | Raw employment (thousands), ~317 months × 842 series, date-indexed (current: through May 2026) |
-| `b1a_wide_seriesid_pre_revision_2026_04.csv` | Snapshot of `b1a_wide_seriesid.csv` taken before the May 2026 release; preserves pre-revision April 2026 values (e.g. Total Nonfarm = 158,736k vs revised 158,829k) |
+| `b1a_wide_seriesid.csv` | Raw employment (thousands), ~318 months × 842 series, date-indexed (current: through June 2026) |
+| `b1a_wide_seriesid_pre_revision_2026_05.csv` | Snapshot of `b1a_wide_seriesid.csv` taken before the June 2026 release; preserves pre-revision May 2026 values (e.g. Total Nonfarm = 159,001k vs revised 158,927k) |
 | `build_mapping.py` | Reads `b1a_mapping_with_parent.csv` → writes `b1a_mapping_with_denominators.csv` |
 | `pull_data.ipynb` | Calls BLS API → writes `b1a_wide_seriesid.csv` |
 
@@ -77,7 +77,7 @@ git push origin main    # triggers Render.com redeploy + GitHub Actions → GitH
 ```
 emp_recent, emp_prev, display_level, series_id, industry_name
 dev_log_level, dev_log_level_{1,3,6,9,12,15}m, dev_log_level_covid   ← option-independent
-apr2026_preliminary, apr2026_revised, revision, revision_pct          ← option-independent revision fields
+may2026_preliminary, may2026_revised, revision, revision_pct          ← option-independent revision fields
 
 opts["1"…"6"]: {
   share, share_pct, share_{1,3,6,9,12,15}m, share_covid, denom_name,
@@ -88,7 +88,7 @@ opts["1"…"6"]: {
 ```
 `share_covid` = share at the dynamically identified COVID shock month (max |MoM share change| in Mar–May 2020).
 
-Revision fields: loaded from `b1a_wide_seriesid_pre_revision_2026_04.csv` (pre-revision snapshot) vs. current `b1a_wide_seriesid.csv`. `revision = revised − preliminary`; `revision_pct = revision / preliminary` (null if preliminary is 0 or missing).
+Revision fields: loaded from `b1a_wide_seriesid_pre_revision_2026_05.csv` (pre-revision snapshot) vs. current `b1a_wide_seriesid.csv`. `revision = revised − preliminary`; `revision_pct = revision / preliminary` (null if preliminary is 0 or missing).
 
 ### Per-industry JSON (`{series_id}.json`)
 ```
@@ -102,7 +102,7 @@ options["1"…"6"]: {
 ```
 
 ### Homepage table columns
-Static: Industry, Lvl, latest month (000s), prev month (000s), Share (% of denom), 3M share growth, Apr 2026 Preliminary (000s), Revision (revised − prelim, color-coded), Revision % (%, color-coded), Denominator, → Analysis.
+Static: Industry, Lvl, latest month (000s), prev month (000s), Share (% of denom), 3M share growth, May 2026 Preliminary (000s), Revision (revised − prelim, color-coded), Revision % (%, color-coded), Denominator, → Analysis.
 The last column links to the analysis page pre-filtered to that industry.
 Removed in May 2026 update: Dev. Log Share (linear) and Dev. Log Share (HP filter) — data still generated in `generate_data.py`, just not displayed on homepage.
 
