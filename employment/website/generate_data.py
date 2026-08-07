@@ -31,8 +31,8 @@ DATA_OUT.mkdir(exist_ok=True)
 
 MAPPING_FILE    = BASE / "b1a_mapping_with_denominators.csv"
 EMP_FILE        = BASE / "b1a_wide_seriesid.csv"
-EMP_PREREVIS    = BASE / "b1a_wide_seriesid_pre_revision_2026_05.csv"
-MAY2026_DATE    = pd.Timestamp("2026-05-01")
+EMP_PREREVIS    = BASE / "b1a_wide_seriesid_pre_revision_2026_06.csv"
+JUN2026_DATE    = pd.Timestamp("2026-06-01")
 
 OPT_LABELS = {
     1: "Level 4 parent (default)",
@@ -137,14 +137,14 @@ mapping = mapping.sort_values("row_order").reset_index(drop=True)
 emp       = pd.read_csv(EMP_FILE, index_col=0, parse_dates=True)
 all_dates = emp.index
 
-# Load pre-revision May 2026 snapshot for revision comparison
+# Load pre-revision June 2026 snapshot for revision comparison
 if EMP_PREREVIS.exists():
     emp_pre = pd.read_csv(EMP_PREREVIS, index_col=0, parse_dates=True)
-    may2026_pre = emp_pre.loc[MAY2026_DATE] if MAY2026_DATE in emp_pre.index else None
+    jun2026_pre = emp_pre.loc[JUN2026_DATE] if JUN2026_DATE in emp_pre.index else None
 else:
-    may2026_pre = None
+    jun2026_pre = None
 
-may2026_revised = emp.loc[MAY2026_DATE] if MAY2026_DATE in emp.index else None
+jun2026_revised = emp.loc[JUN2026_DATE] if JUN2026_DATE in emp.index else None
 date_strs = [d.strftime("%Y-%m-%d") for d in all_dates]
 n_dates   = len(all_dates)
 
@@ -365,9 +365,9 @@ for _, mrow in mapping.iterrows():
             "dev_raw_share_pct_covid":  peak_covid_scalar(resid_rs_np, covid_idxs),
         }
 
-    # May 2026 revision fields
-    pre_val  = to_float(may2026_pre[sid])  if (may2026_pre  is not None and sid in may2026_pre.index)  else None
-    rev_val  = to_float(may2026_revised[sid]) if (may2026_revised is not None and sid in may2026_revised.index) else None
+    # June 2026 revision fields
+    pre_val  = to_float(jun2026_pre[sid])  if (jun2026_pre  is not None and sid in jun2026_pre.index)  else None
+    rev_val  = to_float(jun2026_revised[sid]) if (jun2026_revised is not None and sid in jun2026_revised.index) else None
     revision = (round(rev_val - pre_val, 6) if (pre_val is not None and rev_val is not None) else None)
     if pre_val is not None and rev_val is not None and pre_val != 0:
         revision_pct = round((rev_val - pre_val) / pre_val, 6)
@@ -385,8 +385,8 @@ for _, mrow in mapping.iterrows():
         "dev_log_level":       last_nonnan3(r["resid_ll"]),
         **{f"dev_log_level{k}": ll_snaps[k] for k in ll_snaps},
         "dev_log_level_covid": ll_covid,
-        "may2026_preliminary": pre_val,
-        "may2026_revised":     rev_val,
+        "jun2026_preliminary": pre_val,
+        "jun2026_revised":     rev_val,
         "revision":            revision,
         "revision_pct":        revision_pct,
         "opts":                opts_summary,
