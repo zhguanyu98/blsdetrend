@@ -31,8 +31,7 @@ DATA_OUT.mkdir(exist_ok=True)
 
 MAPPING_FILE    = BASE / "b1a_mapping_with_denominators.csv"
 EMP_FILE        = BASE / "b1a_wide_seriesid.csv"
-EMP_PREREVIS    = BASE / "b1a_wide_seriesid_pre_revision_2026_06.csv"
-JUN2026_DATE    = pd.Timestamp("2026-06-01")
+PREREVIS_GLOB   = "b1a_wide_seriesid_pre_revision_*.csv"
 
 OPT_LABELS = {
     1: "Level 4 parent (default)",
@@ -114,6 +113,21 @@ def covid_share_scalar(sv: np.ndarray, covid_idxs: list):
     return best_val
 
 
+def growth_at(arr: np.ndarray, idx: int, lag: int):
+    """Growth of arr over `lag` months ending at idx: (cur - base) / base.
+
+    Returns None when either endpoint is missing or zero. Anchoring at `idx` (each
+    series' own last valid month) rather than the table's last month keeps the ~667
+    series that report a month late from showing blank M/M and Y/Y.
+    """
+    if idx < lag or idx >= len(arr):
+        return None
+    cur, base = float(arr[idx]), float(arr[idx - lag])
+    if not (np.isfinite(cur) and np.isfinite(base)) or base == 0:
+        return None
+    return round((cur - base) / base, 6)
+
+
 def lag_snapshots(arr: np.ndarray, lv_idx: int) -> dict:
     """Return {_1m, _3m, _6m, _9m, _12m, _15m} scalars relative to lv_idx."""
     return {f"_{n}m": scalar_at(arr, lv_idx - n) if lv_idx >= n else None
@@ -137,14 +151,51 @@ mapping = mapping.sort_values("row_order").reset_index(drop=True)
 emp       = pd.read_csv(EMP_FILE, index_col=0, parse_dates=True)
 all_dates = emp.index
 
-# Load pre-revision June 2026 snapshot for revision comparison
-if EMP_PREREVIS.exists():
-    emp_pre = pd.read_csv(EMP_PREREVIS, index_col=0, parse_dates=True)
-    jun2026_pre = emp_pre.loc[JUN2026_DATE] if JUN2026_DATE in emp_pre.index else None
-else:
-    jun2026_pre = None
+# ── Pre-revision snapshot ──────────────────────────────────────────────────────
+# pull_data.py writes b1a_wide_seriesid_pre_revision_<YYYY_MM>.csv before each pull,
+# named for that vintage's own last month — the month that was still preliminary then.
+# Pick the newest snapshot strictly older than the current data, so the month rolls
+# forward on its own and a repeated pull cannot shadow the right vintage.
+def find_prerevision_snapshot(cutoff):
+    best = None
+    for f in sorted(BASE.glob(PREREVIS_GLOB)):
+        stem = f.stem.rsplit("pre_revision_", 1)[-1]          # "2026_06"
+        try:
+            stamp = pd.Timestamp(stem.replace("_", "-") + "-01")
+        except ValueError:
+            continue
+        if stamp < cutoff and (best is None or stamp > best[0]):
+            best = (stamp, f)
+    return best
 
-jun2026_revised = emp.loc[JUN2026_DATE] if JUN2026_DATE in emp.index else None
+_snap = find_prerevision_snapshot(all_dates[-1])
+
+prelim_row  = None
+revised_row = None
+REVISION_MONTH = None
+REVISION_MONTH_LABEL = ""
+PRELIM_KEY  = "preliminary"
+REVISED_KEY = "revised"
+
+if _snap is not None:
+    _stamp, _path = _snap
+    emp_pre = pd.read_csv(_path, index_col=0, parse_dates=True)
+    rev_date = emp_pre.index[-1]
+    if rev_date in all_dates and rev_date < all_dates[-1]:
+        prelim_row  = emp_pre.loc[rev_date]
+        revised_row = emp.loc[rev_date]
+        REVISION_MONTH = rev_date.strftime("%Y-%m")
+        REVISION_MONTH_LABEL = rev_date.strftime("%B %Y")
+        _stem = f"{rev_date.strftime('%b').lower()}{rev_date.year}"
+        PRELIM_KEY  = f"{_stem}_preliminary"
+        REVISED_KEY = f"{_stem}_revised"
+        print(f"Revision comparison month: {REVISION_MONTH_LABEL} from {_path.name} "
+              f"({int(prelim_row.notna().sum())} series had a preliminary estimate)")
+    else:
+        print(f"Snapshot {_path.name} ends {rev_date:%Y-%m}; current data ends "
+              f"{all_dates[-1]:%Y-%m} — skipping revision columns.")
+else:
+    print(f"No {PREREVIS_GLOB} older than the current data — skipping revision columns.")
 date_strs = [d.strftime("%Y-%m-%d") for d in all_dates]
 n_dates   = len(all_dates)
 
@@ -318,6 +369,18 @@ for _, mrow in mapping.iterrows():
 
     r = results[sid]
 
+    # M/M and Y/Y growth, anchored to this series' own latest available month
+    ev_np = r["ev"]
+    lv_ev = last_valid_idx_np(ev_np)
+    mom   = growth_at(ev_np, lv_ev, 1)
+    yoy   = growth_at(ev_np, lv_ev, 12)
+    if lv_ev >= 0:
+        growth_label = month_label(all_dates[lv_ev])
+        mom_label = f"{growth_label} vs {month_label(all_dates[lv_ev - 1])}" if lv_ev >= 1 else ""
+        yoy_label = f"{growth_label} vs {month_label(all_dates[lv_ev - 12])}" if lv_ev >= 12 else ""
+    else:
+        growth_label = mom_label = yoy_label = ""
+
     # Level snapshots (option-independent)
     resid_ll_np  = r["resid_ll"]
     lv_ll        = last_valid_idx_np(resid_ll_np)
@@ -365,9 +428,9 @@ for _, mrow in mapping.iterrows():
             "dev_raw_share_pct_covid":  peak_covid_scalar(resid_rs_np, covid_idxs),
         }
 
-    # June 2026 revision fields
-    pre_val  = to_float(jun2026_pre[sid])  if (jun2026_pre  is not None and sid in jun2026_pre.index)  else None
-    rev_val  = to_float(jun2026_revised[sid]) if (jun2026_revised is not None and sid in jun2026_revised.index) else None
+    # Preliminary vs revised for the detected revision month
+    pre_val  = to_float(prelim_row[sid])  if (prelim_row  is not None and sid in prelim_row.index)  else None
+    rev_val  = to_float(revised_row[sid]) if (revised_row is not None and sid in revised_row.index) else None
     revision = (round(rev_val - pre_val, 6) if (pre_val is not None and rev_val is not None) else None)
     if pre_val is not None and rev_val is not None and pre_val != 0:
         revision_pct = round((rev_val - pre_val) / pre_val, 6)
@@ -385,8 +448,13 @@ for _, mrow in mapping.iterrows():
         "dev_log_level":       last_nonnan3(r["resid_ll"]),
         **{f"dev_log_level{k}": ll_snaps[k] for k in ll_snaps},
         "dev_log_level_covid": ll_covid,
-        "jun2026_preliminary": pre_val,
-        "jun2026_revised":     rev_val,
+        "mom":                 mom,
+        "yoy":                 yoy,
+        "growth_label":        growth_label,
+        "mom_label":           mom_label,
+        "yoy_label":           yoy_label,
+        PRELIM_KEY:            pre_val,
+        REVISED_KEY:           rev_val,
         "revision":            revision,
         "revision_pct":        revision_pct,
         "opts":                opts_summary,
@@ -394,7 +462,10 @@ for _, mrow in mapping.iterrows():
 
 with open(DATA_OUT / "table_data.json", "w") as f:
     json.dump({"rows": rows, "last_label": last_lbl, "prev_label": prev_lbl,
-               "opt_labels": {str(k): v for k, v in OPT_LABELS.items()}}, f)
+               "opt_labels": {str(k): v for k, v in OPT_LABELS.items()},
+               "revision_month": REVISION_MONTH,
+               "revision_month_label": REVISION_MONTH_LABEL,
+               "prelim_key": PRELIM_KEY, "revised_key": REVISED_KEY}, f)
 
 print(f"  → {len(rows)} rows written to table_data.json")
 

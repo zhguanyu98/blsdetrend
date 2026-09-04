@@ -86,3 +86,32 @@ a.industry-link:hover {
 .bls-table tbody tr:hover td.industry-name {
   background-color: #dbeafe !important;
 }
+
+/* ── Analysis page ──────────────────────────────────────────────────── */
+.analysis-section-header {
+  background-color: #f1f5f9;
+  border: 1px solid #dee2e6;
+}
+
+.analysis-section-header:hover {
+  background-color: #e2e8f0;
+}
+
+th.sortable {
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+th.sortable:hover {
+  background-color: #f1f5f9;
+}
+
+.text-pos { color: #15803d !important; }
+.text-neg { color: #b91c1c !important; }
+
+.pattern-btn {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  transition: opacity 0.15s;
+}

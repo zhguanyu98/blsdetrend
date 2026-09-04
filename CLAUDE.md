@@ -15,7 +15,7 @@ Both follow the same pattern: a data pipeline writes pre-computed JSON to `websi
 
 ### Employment site
 ```bash
-jupyter nbconvert --to notebook --execute employment/pull_data.ipynb   # pull BLS data
+python3 employment/pull_data.py            # snapshot prev vintage + pull BLS data
 python3 employment/build_mapping.py                                     # rebuild denominator mapping
 cd employment/website && python3 generate_data.py                       # regenerate JSON
 cd employment/website && flask run --port 5001
@@ -27,6 +27,15 @@ cd earnings && python pull_data.py          # pull BLS data + CPI-U (~5 min, 22 
 cd earnings/website && python generate_data.py   # regenerate JSON
 cd earnings/website && flask run --port 5002
 ```
+
+### Monthly update (after each BLS Employment Situation release)
+```bash
+./update_monthly.sh              # both sites: pull → generate_data → freeze, then a summary
+./update_monthly.sh employment   # one site only
+```
+Commits nothing. It pins a Python that actually has Frozen-Flask (bare `python3` on this
+machine can resolve to Anaconda 3.9, which does not) and aborts if the pull did not
+advance the month — otherwise the revision columns would silently vanish.
 
 ### Deploy (both sites)
 ```bash
@@ -41,9 +50,10 @@ git push origin main    # triggers Render.com redeploy + GitHub Actions → GitH
 | `b1a_mapping_with_parent.csv` | 842 rows: series_id, industry_name, display_level (0–7), row_order, supersector_code, parent_series_id |
 | `b1a_mapping_with_denominators.csv` | Above + `denominator_opt{1-6}` and `denominator_opt{1-6}_name` — primary input to website |
 | `b1a_wide_seriesid.csv` | Raw employment (thousands), ~319 months × 842 series, date-indexed (current: through July 2026) |
-| `b1a_wide_seriesid_pre_revision_2026_06.csv` | Snapshot of `b1a_wide_seriesid.csv` taken before the July 2026 release; preserves pre-revision June 2026 values (e.g. Total Nonfarm = 158,984k vs revised 158,881k) |
+| `b1a_wide_seriesid_pre_revision_<YYYY_MM>.csv` | Snapshots of `b1a_wide_seriesid.csv` taken before each release, named for the snapshot's own last month — the month still preliminary at that pull (e.g. `..._2026_06` has Total Nonfarm June = 158,984k vs revised 158,881k). `generate_data.py` auto-selects the newest one older than the current data; existing snapshots are never overwritten, so a repeated pull is harmless. |
 | `build_mapping.py` | Reads `b1a_mapping_with_parent.csv` → writes `b1a_mapping_with_denominators.csv` |
-| `pull_data.ipynb` | Calls BLS API → writes `b1a_wide_seriesid.csv` |
+| `pull_data.py` | Snapshots `b1a_wide_seriesid.csv` → `b1a_wide_seriesid_pre_revision_<its last month>.csv`, then calls BLS API and overwrites `b1a_wide_seriesid.csv` |
+| `pull_data.ipynb` | One-cell notebook wrapper: `%run pull_data.py` |
 
 ### Earnings (`earnings/`)
 | File | Content |
@@ -77,7 +87,8 @@ git push origin main    # triggers Render.com redeploy + GitHub Actions → GitH
 ```
 emp_recent, emp_prev, display_level, series_id, industry_name
 dev_log_level, dev_log_level_{1,3,6,9,12,15}m, dev_log_level_covid   ← option-independent
-jun2026_preliminary, jun2026_revised, revision, revision_pct          ← option-independent revision fields
+{mon}{yyyy}_preliminary, {mon}{yyyy}_revised, revision, revision_pct  ← option-independent
+mom, yoy, growth_label, mom_label, yoy_label                          ← option-independent
 
 opts["1"…"6"]: {
   share, share_pct, share_{1,3,6,9,12,15}m, share_covid, denom_name,
@@ -88,7 +99,19 @@ opts["1"…"6"]: {
 ```
 `share_covid` = share at the dynamically identified COVID shock month (max |MoM share change| in Mar–May 2020).
 
-Revision fields: loaded from `b1a_wide_seriesid_pre_revision_2026_06.csv` (pre-revision snapshot) vs. current `b1a_wide_seriesid.csv`. `revision = revised − preliminary`; `revision_pct = revision / preliminary` (null if preliminary is 0 or missing).
+Revision fields: `find_prerevision_snapshot()` picks the newest
+`b1a_wide_seriesid_pre_revision_<YYYY_MM>.csv` strictly older than the current data and
+diffs its last month against the same month now. `revision = revised − preliminary`;
+`revision_pct = revision / preliminary` (null if preliminary is 0 or missing). Row keys
+are named for the month (`jun2026_preliminary`); `table_data.json` carries
+`revision_month`, `revision_month_label`, `prelim_key`, `revised_key` at the top level,
+so **no month is hardcoded anywhere** — the columns roll forward on their own.
+
+M/M and Y/Y: `growth_at()` on the employment level, anchored to *each series' own* last
+valid month (only ~175 of 842 report in the newest month, so a June-only series shows
+Jun/May and Jun/Jun-25 rather than blank). `mom_label` / `yoy_label` name the two months
+compared and become the cell tooltip. Always computed from the current — i.e. revised —
+data, never the preliminary snapshot.
 
 ### Per-industry JSON (`{series_id}.json`)
 ```
@@ -102,7 +125,9 @@ options["1"…"6"]: {
 ```
 
 ### Homepage table columns
-Static: Industry, Lvl, latest month (000s), prev month (000s), Share (% of denom), 3M share growth, June 2026 Preliminary (000s), Revision (revised − prelim, color-coded), Revision % (%, color-coded), Denominator, → Analysis.
+Static: Industry, Lvl, latest month (000s), prev month (000s), **M/M %**, **Y/Y %**, Share (% of denom), 3M share growth, {revision month} Preliminary (000s), Revision (revised − prelim, color-coded), Revision % (%, color-coded), Denominator, → Analysis.
+
+Sortable: `mom`, `yoy`, `share-growth`, `apr-prelim`, `revision`, `revision-pct` — the `apr-prelim` slug is a historical name and does **not** track the month.
 The last column links to the analysis page pre-filtered to that industry.
 Removed in May 2026 update: Dev. Log Share (linear) and Dev. Log Share (HP filter) — data still generated in `generate_data.py`, just not displayed on homepage.
 

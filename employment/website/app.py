@@ -38,6 +38,8 @@ def index():
         rows=_TABLE_DATA["rows"],
         last_label=_TABLE_DATA.get("last_label", ""),
         prev_label=_TABLE_DATA.get("prev_label", ""),
+        revision_month_label=_TABLE_DATA.get("revision_month_label", ""),
+        prelim_key=_TABLE_DATA.get("prelim_key", ""),
     ))
     resp.headers["Cache-Control"] = "no-store"
     return resp
