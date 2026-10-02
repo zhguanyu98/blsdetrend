@@ -249,7 +249,7 @@ Click once = ascending (▲), twice = descending (▼), three times = reset to B
 
 ### Employment site
 - **Render.com**: `https://blsdetrend.onrender.com` — `rootDir: employment/website`
-- **GitHub Pages**: `https://zhguanyu98.github.io/blsdetrend/employment/` — built from `employment/website/build/`
+- **GitHub Pages**: `https://zhguanyu98.github.io/blsdetrend/` — built from `employment/website/build/`, published to the gh-pages **root** (the deploy step sets no `destination_dir`)
 
 ### Earnings site
 - **Render.com**: separate service — `rootDir: earnings/website`
@@ -257,4 +257,4 @@ Click once = ascending (▲), twice = descending (▼), three times = reset to B
 
 GitHub repo: `https://github.com/zhguanyu98/blsdetrend`
 
-Both static builds use Frozen-Flask (`freeze.py` in each `website/`). The GitHub Actions workflow (`.github/workflows/deploy.yml`) runs both build jobs in parallel and deploys to the `gh-pages` branch using `keep_files: true` so neither site overwrites the other.
+Both static builds use Frozen-Flask (`freeze.py` in each `website/`). The GitHub Actions workflow (`.github/workflows/deploy.yml`) runs the two build jobs **serially** (`build-earnings` declares `needs: [build-employment]`, to avoid simultaneous pushes to `gh-pages`) and deploys with `keep_files: true` so neither site overwrites the other. Note the employment job only runs `freeze.py` — it does **not** regenerate data, so `employment/website/data/*.json` must be committed; the earnings job runs `generate_data.py` first.
